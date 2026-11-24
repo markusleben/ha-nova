@@ -124,7 +124,7 @@ beforeEach(async () => {
     supervisor: gated("supervisor", upstream("supervisor"), gate),
     ask: () => ({}),
   };
-  const deps = { registry, pairingManager: { getStatus: () => ({ phase: "inactive" }) } as unknown as PairingV1Manager, functional, relayVersion: "0.29.0", now: () => 1 };
+  const deps = { registry, pairingManager: { getStatus: () => ({ phase: "inactive" }) } as unknown as PairingV1Manager, functional, relayVersion: "0.29.0", now: () => 1, fetchAuthUsers: async () => [] };
   bootBase = `http://127.0.0.1:${await listen(createHttp(createBootstrapListener(deps)))}`;
   const deviceListener = createDeviceListener(deps);
   devicePort = await listen(createHttps({ key: tls.keyPem, cert: tls.certPem }, (request: IncomingMessage, response) => {

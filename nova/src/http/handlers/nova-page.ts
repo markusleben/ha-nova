@@ -239,7 +239,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
           // owner.users: Home Assistant's users as read for this request (checkOwner, never cached).
           removed = await applyChatUsers(deps.chatApps!, owner.userId, owner.users, form);
         } else {
-          restart = await applyAction(deps, action as NovaAction, form, owner.userId);
+          restart = await applyAction(deps, action as NovaAction, form, owner.userId, owner.isOwner);
         }
         // Who connected or revoked a computer: any administrator may, so the log names them.
         if (ADMIN_ACTIONS.has(action) || WINDOW_ACTIONS.has(action)) {
@@ -284,7 +284,7 @@ export function createNovaActionHandler(deps: NovaPageDeps): RouteHandler {
 }
 
 // Returns whether Home Assistant must restart (turning chat apps on).
-async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>, ownerId: string): Promise<boolean> {
+async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<string, unknown>, ownerId: string, isOwner: boolean): Promise<boolean> {
   const chat = deps.chatApps!;
   switch (action as Exclude<NovaAction, ChatPhoneAction | "chat_users">) {
     case "chat_apps_on":
@@ -300,7 +300,7 @@ async function applyAction(deps: NovaPageDeps, action: NovaAction, form: Record<
       chat.setSwitches({ chatCodes: onOff(form.value) });
       return false;
     case "generate_code":
-      deps.pairing.generateCode();
+      deps.pairing.generateCode(isOwner ? undefined : ownerId); // an administrator's computer works only while they are one
       return false;
     case "resume_phone_asks": {
       deps.gatePage?.resume(typeof form.device_id === "string" ? form.device_id : ""); // false: the pause already ended

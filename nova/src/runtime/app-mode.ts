@@ -26,6 +26,7 @@ import {
   type DeviceRegistry,
 } from "../security/device-registry.js";
 import { opaqueReady } from "../security/opaque-server.js";
+import { readAuthUsers } from "../security/owner-check.js";
 import { checkWindowConfirm, codeOwner, codeState, windowStatus } from "../security/window-confirm.js";
 import type { Principal } from "../security/principal.js";
 import { createPairingV1Manager } from "../security/pairing-v1.js";
@@ -215,6 +216,7 @@ export async function buildAppMode(
     now: input.now,
     logger: input.logger,
     chatAppFiles: () => chatAppFilesPresent(input.fileAccess.configRoot),
+    fetchAuthUsers: () => readAuthUsers(input.wsClient),
     // Unreadable: counted as another device, so uninstall keeps the App.
     bridgeDevice: () => {
       try {

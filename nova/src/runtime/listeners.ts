@@ -6,6 +6,7 @@ import { createDeviceActivateHandler, createDevicePeersHandler, createDeviceRevo
 import { createPairV1FinishHandler, createPairV1InfoHandler, createPairV1StartHandler } from "../http/handlers/pair-v1.js";
 import type { DeviceRegistry } from "../security/device-registry.js";
 import type { PairingV1Manager } from "../security/pairing-v1.js";
+import { checkPairedBy, type HaAuthUser } from "../security/owner-check.js";
 import { resolvePrincipal, type Transport } from "../security/principal.js";
 
 // App-mode listener assembly. The relay runs three listeners over one shared
@@ -40,6 +41,7 @@ export interface PairingListenerDeps {
   // Chat-app integration files in Home Assistant's config; null: unknown.
   chatAppFiles?: () => boolean | null;
   bridgeDevice?: () => string | null; // the chat-app bridge's internal device
+  fetchAuthUsers: () => Promise<HaAuthUser[]>; // checkPairedBy
 }
 
 const PAIR_INFO = "GET /pair/v1/info";
@@ -79,7 +81,7 @@ function registerFunctional(router: Router, fns: FunctionalHandlers): void {
 // plain transport it never succeeds (resolvePrincipal), so it only words the
 // refusal.
 function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
-  return (request: IncomingMessage): AuthOutcome => {
+  return (request: IncomingMessage): Promise<AuthOutcome> => checkPairedBy(() => {
     const r = resolvePrincipal(request.headers.authorization, transport, { registry: deps.registry, now: deps.now }, request.socket.remoteAddress);
     if (r.ok) {
       return { ok: true, principal: r.principal };
@@ -87,7 +89,7 @@ function functionalAuthorize(deps: PairingListenerDeps, transport: Transport) {
     // The CLI tells this refusal apart by its header, before reading a body.
     const headers = r.code === "PAIRING_REQUIRED" ? { headers: { "x-ha-nova-auth": "pairing-required" } } : {};
     return { ok: false, status: r.status, code: r.code, message: r.message, ...headers };
-  };
+  }, deps.registry, deps.fetchAuthUsers);
 }
 
 // Plain HTTP bootstrap listener: pairing only. No functional route: the old

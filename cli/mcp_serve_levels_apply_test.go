@@ -1,6 +1,8 @@
 package main
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -181,6 +183,62 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 		waitFor(t, "the result on the phone", func() bool { return p.sentCount() == 2 })
 		if env := s.outcome(t, userA, map[string]any{"plan_id": plan["id"]}); envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
+		}
+	})
+	t.Run("call, apply, or config plan, role lowered to read only while it waits for the lock", func(t *testing.T) { // MAR-181
+		for _, name := range []string{"ha_call", "ha_apply", "ha_plan"} {
+			f := household(batchHome())
+			s := newServe(t, f, levels([]string{userA}, nil))
+			args := map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}
+			switch name {
+			case "ha_apply":
+				plan, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "homeassistant.check_config"})["plan"].(map[string]any)
+				args = map[string]any{"plan_id": plan["id"]}
+			case "ha_plan": // its preview would show the script's live config
+				args = map[string]any{"kind": "write", "domain": "script", "id": "s1", "draft": arrival("light.turn_off")}
+			}
+			plans := len(s.userPlans(userA))
+			read := make(chan struct{}, 8)
+			f.mu.Lock()
+			f.extra = func(endpoint string, p map[string]any) (any, bool) {
+				if endpoint == "ws" && p["type"] == "config/auth/list" {
+					select {
+					case read <- struct{}{}:
+					default:
+					}
+				}
+				return nil, false
+			}
+			f.mu.Unlock()
+			mcpVerbLock.Lock() // another change runs while the request waits
+			held := true
+			t.Cleanup(func() {
+				if held {
+					mcpVerbLock.Unlock()
+				}
+			})
+			var env map[string]any
+			done := make(chan struct{})
+			go func() { env = s.tool(userA, name, args); close(done) }()
+			select { // a read before the lock would see the role as it was
+			case <-read:
+			case <-time.After(time.Second):
+			}
+			f.mu.Lock() // a new list: the read that signalled may still be encoding the old one
+			users := slices.Clone(f.users)
+			users[1] = maps.Clone(users[1])
+			users[1]["group_ids"] = []string{"system-read-only"}
+			f.users = users
+			f.mu.Unlock()
+			held = false
+			mcpVerbLock.Unlock()
+			<-done
+			if name == "ha_apply" && env["status"] == "applying" {
+				env = s.outcome(t, userA, args)
+			}
+			if envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 || len(s.userPlans(userA)) != plans {
+				t.Fatalf("%s: %v (sent %d, plans %d)", name, env, len(s.posts()), len(s.userPlans(userA)))
+			}
 		}
 	})
 	t.Run("phone, a batch, level lowered", func(t *testing.T) {

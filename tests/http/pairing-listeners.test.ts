@@ -1,7 +1,7 @@
 import { createServer as createHttp, type Server } from "node:http";
 import { createServer as createHttps } from "node:https";
 import { request as httpsRequest } from "node:https";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -13,6 +13,7 @@ import { createBootstrapListener, createDeviceListener } from "../../nova/src/ru
 import { openDeviceRegistry, type DeviceRegistry } from "../../nova/src/security/device-registry.js";
 import { OPAQUE_CLIENT_ID, OPAQUE_KSF, OPAQUE_SERVER_ID, opaqueReady } from "../../nova/src/security/opaque-server.js";
 import { deriveDirectionKeys, open, seal } from "../../nova/src/security/pairing-crypto.js";
+import type { HaAuthUser } from "../../nova/src/security/owner-check.js";
 import { createPairingV1Manager, type PairingV1Manager } from "../../nova/src/security/pairing-v1.js";
 import { loadOrCreateTlsIdentity, type TlsIdentity } from "../../nova/src/security/tls-identity.js";
 
@@ -28,6 +29,13 @@ let bootstrap: Server;
 let device: Server;
 let bootBase: string;
 let devicePort: number;
+let users: HaAuthUser[] | Error; // Home Assistant's users as the listener reads them (an Error: the read fails)
+let usersReads: number;
+const fetchAuthUsers = async () => {
+  usersReads++;
+  if (users instanceof Error) throw users;
+  return users;
+};
 
 const echo: RouteHandler = () => ({ echoed: true });
 const functional = { health: echo, ws: echo, core: echo, files: echo, backups: echo, supervisor: echo, ask: echo };
@@ -84,7 +92,9 @@ beforeEach(async () => {
     secureEndpoint: () => ({ spkiPin: tls.spkiPin, securePort: devicePort }),
     now: () => Date.now(),
   });
-  const deps = { registry, pairingManager: manager, functional, relayVersion: "0.7.0", now: () => Date.now() };
+  users = [{ id: "owner-1", is_owner: true, is_active: true }, { id: "admin-1", is_active: true, group_ids: ["system-admin"] }];
+  usersReads = 0;
+  const deps = { registry, pairingManager: manager, functional, relayVersion: "0.7.0", now: () => Date.now(), fetchAuthUsers };
   device.removeAllListeners("request");
   device.on("request", createDeviceListener(deps));
   bootstrap = createHttp(createBootstrapListener(deps));
@@ -97,8 +107,8 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function completePairing(): Promise<{ credential: string }> {
-  const { code } = manager.generateCode();
+async function completePairing(madeBy?: string): Promise<{ credential: string }> {
+  const { code } = manager.generateCode(madeBy);
   const { reg } = pair(code);
   const started = await postBoot("/pair/v1/start", { ke1: reg.startLoginRequest });
   expect(started.status).toBe(200);
@@ -125,7 +135,7 @@ describe("pairing listeners wiring", () => {
   });
 
   it("advertises window: 1 in /pair/v1/info where the App serves /gate/v1/me", async () => {
-    const withMe = createHttp(createBootstrapListener({ registry, pairingManager: manager, functional: { ...functional, me: echo }, relayVersion: "0.7.0", now: () => Date.now() }));
+    const withMe = createHttp(createBootstrapListener({ registry, pairingManager: manager, functional: { ...functional, me: echo }, relayVersion: "0.7.0", now: () => Date.now(), fetchAuthUsers }));
     try {
       const res = await fetch(`http://127.0.0.1:${await listen(withMe)}/pair/v1/info`);
       expect((await res.json()).data).toMatchObject({ sign_in: true, window: 1 });
@@ -189,6 +199,36 @@ describe("pairing listeners wiring", () => {
       req.end();
     });
     expect(res).toEqual({ status: 401, header: "pairing-required", code: "PAIRING_REQUIRED" });
+  });
+
+  it("lets a computer an administrator connected in only while that person is still an administrator (MAR-170)", async () => {
+    const { credential } = await completePairing("admin-1");
+    expect((await deviceReq("/auth/device/activate", credential)).status).toBe(200);
+    const saved = JSON.parse(readFileSync(join(dir, "device-registry.json"), "utf8")) as { devices: unknown[]; roleCheckedDevices: Array<{ pairedBy: string; state: string }> };
+    expect(saved.devices).toEqual([]); // an App before 0.36 reads only "devices": it doesn't know this computer
+    expect(saved.roleCheckedDevices).toMatchObject([{ pairedBy: "admin-1", state: "active" }]);
+    expect((await deviceReq("/core", credential)).status).toBe(200);
+    const admin = (users as HaAuthUser[])[1]!;
+    for (const [change, status, code] of [
+      [() => (admin.group_ids = ["system-users"]), 401, "UNAUTHORIZED"],
+      [() => (admin.group_ids = ["system-admin"]), 200, undefined], // the role is back: so is the access
+      [() => (admin.is_active = false), 401, "UNAUTHORIZED"],
+      [() => (users = [(users as HaAuthUser[])[0]!]), 401, "UNAUTHORIZED"], // deleted
+      [() => (users = new Error("Home Assistant is restarting")), 503, "ROLE_UNKNOWN"],
+    ] as const) {
+      change();
+      const res = await deviceReq("/core", credential);
+      expect([res.status, res.json.error?.code]).toEqual([status, code]);
+    }
+  });
+
+  it("reads no users for a computer the owner's code connected", async () => {
+    const { credential } = await completePairing();
+    expect((await deviceReq("/auth/device/activate", credential)).status).toBe(200);
+    users = new Error("never read");
+    expect((await deviceReq("/core", credential)).status).toBe(200);
+    expect(usersReads).toBe(0);
+    expect(registry.list()[0]!.pairedBy).toBeUndefined();
   });
 
   it("rejects an unknown credential on the device listener (401)", async () => {

@@ -173,6 +173,7 @@ export function withActivated(
     ...(target.ownComputer !== undefined ? { ownComputer: { ...target.ownComputer } } : {}),
     ...(target.windowConfirm !== undefined ? { windowConfirm: target.windowConfirm } : {}),
     ...(target.legacyCleanup !== undefined ? { legacyCleanup: target.legacyCleanup } : {}),
+    ...(target.pairedBy !== undefined ? { pairedBy: target.pairedBy } : {}),
     // Activation is itself a use; seeds the owner console's "last used".
     lastUsedAtMs: now,
     ...(target.cloudUserId !== undefined
