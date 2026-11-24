@@ -78,7 +78,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		reads = nil
 		for i, automation := range automations {
 			e.ahead["consumer "+automation] = true
-			reads = append(reads, func() {
+			reads = append(reads, func() { _, _, _ = e.rawState(automation) }, func() { // the walk reads its state too (runConfig, scanConsumers)
 				if named[automation] || !e.placeOnlyMiss(automation, places[automation]) {
 					configs[i] = e.warmConfig(automation)
 				}
@@ -150,7 +150,7 @@ func (e *tierEngine) warmConfig(automation string) map[string]any {
 // parseConfig asks for it; the config itself when it uses none.
 func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[string]any {
 	var cfg map[string]any
-	if json.Unmarshal(raw, &cfg) != nil {
+	if json.Unmarshal(raw, &cfg) != nil || len(cfg) == 0 { // null or {}: unread (MAR-272)
 		return nil
 	}
 	bp, isBlueprint := cfg["use_blueprint"].(map[string]any)
@@ -160,7 +160,7 @@ func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[strin
 	var sub struct {
 		Config map[string]any `json:"substituted_config"`
 	}
-	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil || sub.Config == nil {
+	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil || len(sub.Config) == 0 {
 		return nil
 	}
 	return withInstanceKeys(domain, sub.Config, cfg)

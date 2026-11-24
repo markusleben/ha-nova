@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 )
 
@@ -29,6 +30,8 @@ func (e *tierEngine) rawState(id string) (json.RawMessage, bool, error) {
 	switch {
 	case err != nil:
 		return nil, false, err
+	case status == http.StatusOK && strings.TrimSpace(string(body)) == "null": // no state: unread, never an empty one (MAR-272)
+		return nil, false, fmt.Errorf("Home Assistant answered null for %s", id)
 	case status == http.StatusOK:
 		return body, true, nil
 	case status == http.StatusNotFound:
@@ -46,7 +49,7 @@ func readStateList(s *relaySession) (map[string]json.RawMessage, error) {
 	if err == nil {
 		err = json.Unmarshal(body, &rows)
 	}
-	if err == nil && rows == nil { // a null body is no list: never "every entity is absent"
+	if err == nil && len(rows) == 0 { // a null or empty body is no list: never "every entity is absent" (MAR-272)
 		err = errors.New("Home Assistant answered /api/states without a list")
 	}
 	if err != nil {

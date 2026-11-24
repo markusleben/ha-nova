@@ -543,7 +543,7 @@ func withInstanceKeys(domain string, substituted, instance map[string]any) map[s
 // normalized digest in the plan basis.
 func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessage, via string) (map[string]any, bool) {
 	var cfg map[string]any
-	if err := json.Unmarshal(raw, &cfg); err != nil {
+	if err := json.Unmarshal(raw, &cfg); err != nil || len(cfg) == 0 { // null or {} runs nothing Home Assistant loaded: unread, never "no triggers" (MAR-272)
 		e.gap(reasonScanFailed, id, via, "config is not a JSON object")
 		return nil, false
 	}
@@ -556,7 +556,7 @@ func (e *tierEngine) parseConfig(id, domain, configID string, raw json.RawMessag
 		case err != nil && readFailed(err): // no answer in time (the budget): a failed read, never a missing blueprint
 			e.readFailed(id, via, "blueprint")
 			return nil, false
-		case err != nil || json.Unmarshal(data, &sub) != nil || sub.Config == nil:
+		case err != nil || json.Unmarshal(data, &sub) != nil || len(sub.Config) == 0:
 			e.gap(reasonBlueprint, id, via, fmt.Sprint(bp["path"]))
 			return nil, false
 		}

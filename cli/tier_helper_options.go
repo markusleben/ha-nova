@@ -287,6 +287,7 @@ func (e *tierEngine) plainSwitched(id string) bool {
 // quiet: nothing reacts to id's state, which would call more (loud); the
 // last check that failed stays in e.loudWhy for the plan's reason detail.
 func (e *tierEngine) quiet(id string) bool {
+	e.warmQuiet(id)
 	e.loudWhy = e.loud(id)
 	return e.loudWhy == ""
 }

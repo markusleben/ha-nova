@@ -285,8 +285,8 @@ func (e *tierEngine) liveEvents() map[string]int {
 	if err == nil {
 		err = json.Unmarshal(body, &rows)
 	}
-	if err == nil && rows == nil {
-		err = fmt.Errorf("Home Assistant answered null for /api/events")
+	if err == nil && len(rows) == 0 { // Home Assistant always has listeners: an empty list is no answer (MAR-272)
+		err = fmt.Errorf("Home Assistant answered /api/events without any listener")
 	}
 	if err != nil {
 		e.readFailed("", "", "event listeners")
