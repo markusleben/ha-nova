@@ -499,8 +499,8 @@ func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bo
 		return nil, false, nil
 	case err != nil: // permission, transport, decode: a failed read, never "missing"
 		return nil, false, err
-	case trimmed == "" || trimmed == "null" || trimmed == "{}": // Home Assistant runs no such config: unread, never "nothing in it" (MAR-272)
-		return nil, false, fmt.Errorf("Home Assistant answered an empty loaded config for %s", entityID)
+	case json.Unmarshal(loaded.Config, &map[string]json.RawMessage{}) != nil || trimmed == "null" || trimmed == "{}": // no config Home Assistant runs: unread, never "nothing in it" (MAR-272)
+		return nil, false, fmt.Errorf("Home Assistant answered no loaded config for %s", entityID)
 	}
 	return loaded.Config, true, nil
 }

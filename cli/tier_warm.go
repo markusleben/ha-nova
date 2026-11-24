@@ -34,9 +34,6 @@ func (e *tierEngine) warmCallReads(req planCallRequest) {
 	}
 	reads = append(reads, ws("config/entity_registry/list_for_display"), core("/api/services"), ws("config/device_registry/list"),
 		ws("config/area_registry/list"), core("/api/events"), ws("manifest/list"))
-	if !e.s.gateExempt() { // readBatched never batches for the App's own callers
-		reads = append(reads, func() { e.s.wsBatch() })
-	}
 	e.warm(func() { prefetch(reads) })
 }
 
@@ -62,10 +59,13 @@ func (e *tierEngine) warmCensus() {
 			_, _ = e.s.ws(map[string]any{"type": "entity/source"})
 		}
 	})
+	if !e.s.gateExempt() { // readBatched never batches for the App's own callers
+		e.warm(func() { e.s.wsBatch() })
+	}
 	e.warm(func() {
 		status, body, err := e.s.coreGET("/api/states")
 		if rows, err := censusRows(status, body, err); err == nil && len(rows) <= tierMaxAutomations {
-			e.readCensus(rows)
+			e.readCensus(rows, relaySessionMaxConcurrent/2) // the walk keeps the other slots
 		}
 	})
 }
@@ -121,5 +121,5 @@ func helperComponents(status int, body json.RawMessage, err error) (names []stri
 		names = append(names, name)
 		helpers = helpers || helperOptionFields[name] != ""
 	}
-	return names, helpers, true
+	return names, helpers, len(names) > 0 // Home Assistant always loads components: none is no answer (MAR-272)
 }

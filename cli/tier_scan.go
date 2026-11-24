@@ -289,8 +289,8 @@ func (e *tierEngine) liveEvents() map[string]int {
 		Event         string `json:"event"`
 		ListenerCount int    `json:"listener_count"`
 	}) bool {
-		return r.Event == ""
-	})) { // Home Assistant always has listeners, each under its event: an empty list or row is no answer (MAR-272)
+		return r.Event == "" || r.ListenerCount < 1
+	})) { // Home Assistant lists only events with listeners: an empty list or row is no answer (MAR-272)
 		err = fmt.Errorf("Home Assistant answered /api/events without any listener")
 	}
 	if err != nil {

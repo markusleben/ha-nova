@@ -152,7 +152,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		return nil
 	}
 	e.s.censusReads(true)
-	e.readCensus(rows)
+	e.readCensus(rows, 0)
 	e.s.censusReads(false)
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}, waits: map[string]bool{}}
 	for _, row := range rows {
@@ -264,19 +264,26 @@ func censusRows(status int, body json.RawMessage, err error) ([]*censusRow, erro
 
 // readCensus reads each row's loaded config (in batches where the Relay
 // takes them) and its blueprint substitution, concurrently within the
-// session's request slots. Session reads only: warmCensus runs it too.
-func (e *tierEngine) readCensus(rows []*censusRow) {
+// session's request slots, or within inFlight of them (0: all). Session
+// reads only: warmCensus runs it too.
+func (e *tierEngine) readCensus(rows []*censusRow, inFlight int) {
 	requests := make([]map[string]any, len(rows))
 	for i, row := range rows {
 		domain, _ := splitID(row.entityID)
 		requests[i] = loadedConfigRequest(row.entityID, domain)
 	}
-	e.s.readBatched(requests) // over Link: a few round trips, not one per eight configs
+	e.s.readBatched(requests, inFlight) // over Link: a few round trips, not one per eight configs
+	if inFlight <= 0 {
+		inFlight = len(rows)
+	}
+	workers := make(chan struct{}, max(inFlight, 1))
 	var wg sync.WaitGroup
 	for _, row := range rows {
 		wg.Add(1)
 		go func(row *censusRow) {
 			defer wg.Done()
+			workers <- struct{}{}
+			defer func() { <-workers }()
 			domain, _ := splitID(row.entityID)
 			loaded, ok, err := loadedConfig(e.s, row.entityID, domain) // what runs, so what holds the listeners
 			switch {

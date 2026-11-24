@@ -45,6 +45,13 @@ func TestEmptyAnswersAreUnread(t *testing.T) {
 				return coreReply(200, []any{}), p["path"] == "/api/states"
 			}
 		}, args: []string{"light.turn_on", "--match", "Kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
+		{name: "an event row without listeners", setup: func(f *fakeHA) { f.events = []map[string]any{{"event": "call_service"}} },
+			args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
+		{name: "a state of {}", setup: func(f *fakeHA) {
+			f.extra = func(_ string, p map[string]any) (any, bool) {
+				return coreReply(200, map[string]any{}), p["path"] == "/api/states/light.kitchen"
+			}
+		}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
 		{name: "a state of null", setup: func(f *fakeHA) {
 			f.extra = func(_ string, p map[string]any) (any, bool) {
 				return coreReply(200, nil), p["path"] == "/api/states/light.kitchen"

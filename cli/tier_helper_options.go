@@ -199,7 +199,7 @@ func (e *tierEngine) helperCalls() {
 	if err == nil {
 		err = e.s.wsDecode(map[string]any{"type": "entity/source"}, &sources, "the entity sources")
 	}
-	if err != nil || sources == nil {
+	if err != nil || len(sources) == 0 { // a home with no entity sources is no answer (MAR-272)
 		e.calls.unknown = true
 		return
 	}

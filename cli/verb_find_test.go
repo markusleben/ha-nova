@@ -207,11 +207,11 @@ func runVerbForTest(t *testing.T, run func() int) (int, verbTestEnvelope) {
 }
 
 // registryReply serves the area, device, compact, and full registries, and
-// an empty /api/states.
+// a /api/states with only the sun.
 func registryReply(compact []map[string]any, full []map[string]any) func(*http.Request, string, map[string]any) any {
 	return func(_ *http.Request, endpoint string, payload map[string]any) any {
-		if endpoint == "core" && payload["path"] == "/api/states" {
-			return coreReply(200, []any{})
+		if endpoint == "core" && payload["path"] == "/api/states" { // Home Assistant always has states (MAR-272)
+			return coreReply(200, []any{map[string]any{"entity_id": "sun.sun", "state": "above_horizon", "attributes": map[string]any{}}})
 		}
 		switch payload["type"] {
 		case "config/area_registry/list":

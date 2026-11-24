@@ -31,14 +31,22 @@ func (e *tierEngine) rawState(id string) (json.RawMessage, bool, error) {
 	switch {
 	case err != nil:
 		return nil, false, err
-	case status == http.StatusOK && strings.TrimSpace(string(body)) == "null": // no state: unread, never an empty one (MAR-272)
-		return nil, false, fmt.Errorf("Home Assistant answered null for %s", id)
 	case status == http.StatusOK:
+		var head stateHead
+		if json.Unmarshal(body, &head) != nil || head.EntityID != id || head.State == nil { // null or {} is no state: unread, never an empty one (MAR-272)
+			return nil, false, fmt.Errorf("Home Assistant answered no state for %s", id)
+		}
 		return body, true, nil
 	case status == http.StatusNotFound:
 		return nil, false, nil
 	}
 	return nil, false, fmt.Errorf("Home Assistant answered HTTP %d for %s", status, id)
+}
+
+// stateHead: what every state Home Assistant answers carries.
+type stateHead struct {
+	EntityID string  `json:"entity_id"`
+	State    *string `json:"state"`
 }
 
 // stateListError: why an answer to GET /api/states is no state list, nil
@@ -52,17 +60,11 @@ func stateListError(status int, body json.RawMessage, err error) error {
 	if status != http.StatusOK {
 		return fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
 	}
-	var rows []struct {
-		EntityID string `json:"entity_id"`
-	}
+	var rows []stateHead
 	if err := json.Unmarshal(body, &rows); err != nil {
 		return fmt.Errorf("cannot parse the state list: %w", err)
 	}
-	if len(rows) == 0 || slices.ContainsFunc(rows, func(r struct {
-		EntityID string `json:"entity_id"`
-	}) bool {
-		return !strings.Contains(r.EntityID, ".")
-	}) {
+	if len(rows) == 0 || slices.ContainsFunc(rows, func(r stateHead) bool { return !strings.Contains(r.EntityID, ".") || r.State == nil }) {
 		return errors.New("Home Assistant answered /api/states without a state list")
 	}
 	return nil
