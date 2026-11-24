@@ -35,6 +35,7 @@ export interface DeviceRecord {
   confirmRev?: number; // rises with every write of its confirm mode or phone link
   legacyCleanup?: LegacyCleanup;
   pairingOwnerId?: string;
+  pairedBy?: string; // the administrator (not the owner) whose code connected it: it works only while they still are one (MAR-170)
   retireDeviceId?: string; // pending only: the owner-confirmed older entry of this computer its activation removes
 }
 

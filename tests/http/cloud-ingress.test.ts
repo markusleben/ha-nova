@@ -28,6 +28,7 @@ let registry: DeviceRegistry;
 let pairing: PairingV1Manager;
 let clock: number;
 let servers: Server[];
+let authUsers: unknown; // config/auth/list as the listener reads it
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "ha-nova-cloud-ingress-"));
@@ -41,6 +42,7 @@ beforeEach(() => {
     generateCodeNumber: () => 473921,
   });
   servers = [];
+  authUsers = [];
 });
 
 afterEach(async () => {
@@ -205,6 +207,23 @@ describe("Cloud ingress listener", () => {
   });
 });
 
+describe("a Home Assistant Link computer an administrator connected (MAR-170)", () => {
+  it("works only while that person is still an administrator", async () => {
+    const credential = generateCredential();
+    registry.createPending({ deviceId: credential.deviceId, secretDigest: credential.secretDigest, clientInstallId: "admin-install", name: "MacBook", platform: "darwin", client: "codex", createdAtMs: clock, cloudUserId: "user-1", cloudRelayInstanceId: RELAY_ID, pairedBy: "admin-1" }, clock);
+    expect(registry.activatePendingForCloud(credential.deviceId, credential.secretDigest, "user-1", RELAY_ID, clock)).toMatchObject({ ok: true, record: { pairedBy: "admin-1" } });
+    const base = await start(true);
+    for (const [users, status] of [
+      [[{ id: "admin-1", is_active: true, group_ids: ["system-admin"] }], 200],
+      [[{ id: "admin-1", is_active: true, group_ids: ["system-users"] }], 401],
+      [{ error: "not a list" }, 503],
+    ] as const) {
+      authUsers = users;
+      expect((await request(base, "POST", "/core", "user-1", credential.credential, {})).status).toBe(status);
+    }
+  });
+});
+
 function activeDevice() {
   const credential = generateCredential();
   registry.createPending(
@@ -269,7 +288,7 @@ function deps(): IngressListenerDeps {
     deleteDiscovery: async () => true,
   };
   const wsClient = {
-    sendMessage: async () => [],
+    sendMessage: async () => authUsers,
     collectMessageEvents: async () => ({ events: [], truncated: false }),
     isConnected: () => true,
     getConnectionStatus: () => ({ connected: true, disconnectReason: null }),

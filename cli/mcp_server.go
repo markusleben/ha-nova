@@ -319,8 +319,9 @@ func (srv *mcpServer) route(req rpcRequest) (map[string]any, *rpcError) {
 // (lockVerb), releases it, and returns its tool result. Verbs set
 // process-wide state (server selection, the channel); every run starts
 // from this server's and leaves nothing behind. Its output is its own
-// (runCaptured).
-func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*verbCall) int) map[string]any {
+// (runCaptured). With args, a chat app's change first reads the user's
+// access again under the lock (chatLocked); nil: the caller did.
+func (srv *mcpServer) runLocked(name, answered string, forms bool, args map[string]json.RawMessage, run func(*verbCall) int) map[string]any {
 	defer mcpVerbLock.Unlock()
 	if name == "ha_apply" { // a change: chat-app requests wait for it at most chatLockWait
 		mcpVerbLock.changing()
@@ -331,6 +332,11 @@ func (srv *mcpServer) runLocked(name, answered string, forms bool, run func(*ver
 	// Channel and form answer come from this server only: the CLI detects
 	// the channel (confirm_window.go), a form only where no window opens.
 	call := srv.newCall()
+	if args != nil {
+		if refusal := srv.chatLocked(call, name, args); refusal != nil {
+			return refusal
+		}
+	}
 	call.serial = true
 	planChannel, humanAnswer, windowWait, formsShown, chatCall = "", answered, mcpWindowWait, forms, call.chat
 	if srv.chat != nil {

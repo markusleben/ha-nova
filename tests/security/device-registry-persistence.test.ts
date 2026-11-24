@@ -186,6 +186,21 @@ describe("device-registry persistence and integrity", () => {
     expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
   });
 
+  it("keeps an administrator's computer under roleCheckedDevices, and fails closed on one in the wrong list (MAR-170)", () => {
+    const write = (devices: unknown[], roleCheckedDevices?: unknown) =>
+      writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices, ...(roleCheckedDevices !== undefined ? { roleCheckedDevices } : {}), legacy: null }));
+    const plain = { ...base("x", "d"), state: "active" };
+    const checked = { ...base("y", "e"), clientInstallId: "install-2", state: "active", pairedBy: "admin-1" };
+    write([plain], [checked]);
+    expect(openDeviceRegistry(dir).list().map((d) => [d.deviceId, d.pairedBy])).toEqual([["x", undefined], ["y", "admin-1"]]);
+    const saved = JSON.parse(readFileSync(join(dir, "device-registry.json"), "utf8"));
+    expect([saved.devices.map((d: { deviceId: string }) => d.deviceId), saved.roleCheckedDevices.map((d: { deviceId: string }) => d.deviceId)]).toEqual([["x"], ["y"]]);
+    for (const [devices, guarded] of [[[plain, checked], []], [[plain], [plain]], [[plain], [{ ...checked, pairedBy: "" }]], [[plain], { y: checked }], [[plain], [{ ...checked, deviceId: "x" }]]] as const) {
+      write([...devices], guarded);
+      expect(() => openDeviceRegistry(dir)).toThrow(RegistryCorruptError);
+    }
+  });
+
   it("keeps a device's linked phone, and fails closed on a malformed one", () => {
     const write = (confirmPhone: unknown) =>
       writeFileSync(join(dir, "device-registry.json"), JSON.stringify({ version: 1, devices: [{ ...base("x", "d"), state: "active", confirmPhone }], legacy: null }));

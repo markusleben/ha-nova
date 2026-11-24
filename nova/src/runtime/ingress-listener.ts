@@ -13,6 +13,7 @@ import type { DeviceRegistry } from "../security/device-registry.js";
 import type { ChatApps } from "./chat-apps.js";
 import { resolveIngressIdentity } from "../security/ingress-identity.js";
 import type { PairingV1Manager } from "../security/pairing-v1.js";
+import { checkPairedBy, readAuthUsers } from "../security/owner-check.js";
 import { resolveCloudPrincipal } from "../security/principal.js";
 import type { FunctionalHandlers } from "./listeners.js";
 import type { GatePage } from "../http/gate-asks.js";
@@ -74,7 +75,7 @@ function authorizeIngressRoute(
   routeKey: string,
   policy: IngressRoutePolicy | undefined,
   deps: IngressListenerDeps,
-): AuthOutcome {
+): AuthOutcome | Promise<AuthOutcome> {
   if (policy === undefined) {
     return {
       ok: false,
@@ -96,21 +97,23 @@ function authorizeIngressRoute(
     // Owner handlers perform the fresh Home Assistant owner lookup themselves.
     return { ok: true };
   }
-  const principal = resolveCloudPrincipal(
-    request,
-    identity.userId,
-    deps.relayInstanceId,
-    {
-      registry: deps.registry,
-      now: deps.now,
-    },
-  );
-  return principal.ok
-    ? { ok: true, principal: principal.principal }
-    : {
-        ok: false,
-        status: principal.status,
-        code: principal.code,
-        message: principal.message,
-      };
+  return checkPairedBy(() => {
+    const principal = resolveCloudPrincipal(
+      request,
+      identity.userId,
+      deps.relayInstanceId,
+      {
+        registry: deps.registry,
+        now: deps.now,
+      },
+    );
+    return principal.ok
+      ? { ok: true, principal: principal.principal }
+      : {
+          ok: false,
+          status: principal.status,
+          code: principal.code,
+          message: principal.message,
+        };
+  }, deps.registry, () => readAuthUsers(deps.wsClient));
 }

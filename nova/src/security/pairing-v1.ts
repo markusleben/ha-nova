@@ -101,7 +101,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
       return { phase };
     },
 
-    generateCode() {
+    generateCode(madeBy) {
       // Local-only pairing needs a mapped TLS endpoint. App mode can still
       // issue the same owner code for v2 because that flow stays in ingress.
       if (deps.secureEndpoint() === null && deps.cloudPairing !== true) {
@@ -110,7 +110,9 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
         );
       }
       const code = rollCode();
-      return { code, expiresAtMs: openSlot(code, PAIR_CODE_TTL_MS) };
+      const expiresAtMs = openSlot(code, PAIR_CODE_TTL_MS);
+      if (madeBy !== undefined) active!.madeBy = madeBy;
+      return { code, expiresAtMs };
     },
 
     arm(userId, device = "local", ownComputer = false) {
@@ -357,6 +359,7 @@ export function createPairingV1Manager(deps: PairingV1Deps): PairingV1Manager {
           client: metadata.client,
           createdAtMs: t,
           ...pairingWindowFields(metadata, armedFor, active.ownComputer === true, t),
+          ...(active.madeBy !== undefined ? { pairedBy: active.madeBy } : {}),
           ...(binding === undefined ? {} : { cloudUserId: binding.userId, cloudRelayInstanceId: binding.relayInstanceId }),
         },
         {

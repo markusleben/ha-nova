@@ -1,7 +1,8 @@
 import type { IncomingMessage } from "node:http";
 
 import type { PageKey } from "../http/page-texts.js";
-import type { RelayLogger } from "../http/server.js";
+import type { AuthOutcome, RelayLogger } from "../http/server.js";
+import type { DeviceRegistry } from "./device-registry-types.js";
 import { resolveIngressIdentity } from "./ingress-identity.js";
 
 // Server-side authorization for the NOVA management page. panel_admin is
@@ -32,6 +33,29 @@ export interface OwnerCheckDeps {
   // Fetches config/auth/list via the Supervisor-proxied WS. Throws on failure.
   fetchAuthUsers: () => Promise<HaAuthUser[]>;
   logger?: RelayLogger | undefined;
+}
+
+// config/auth/list over the Supervisor-proxied WS. A non-list reply is a
+// Supervisor/HA fault, not "no owner": it throws, so a check answers 503.
+export async function readAuthUsers(ws: { sendMessage(message: { type: string }): Promise<unknown> }): Promise<HaAuthUser[]> {
+  const result = await ws.sendMessage({ type: "config/auth/list" });
+  if (!Array.isArray(result)) throw new Error("config/auth/list returned a non-list result");
+  return result as HaAuthUser[];
+}
+
+// A computer an administrator connected (pairedBy) works only while that
+// person is still an active owner or administrator, read fresh on every
+// request (MAR-170); a failed read refuses. The credential is resolved again
+// after the read, so a revoke meanwhile still wins.
+export async function checkPairedBy(resolve: () => AuthOutcome, registry: Pick<DeviceRegistry, "list">, fetchAuthUsers: () => Promise<HaAuthUser[]>): Promise<AuthOutcome> {
+  const first = resolve();
+  const principal = first.ok ? first.principal : undefined;
+  const maker = principal?.kind === "device" ? registry.list().find((d) => d.deviceId === principal.deviceId)?.pairedBy : undefined;
+  if (maker === undefined) return first;
+  const user = await fetchAuthUsers().then((users) => users.find((u) => u?.id === maker) ?? null).catch(() => undefined);
+  if (user === undefined) return { ok: false, status: 503, code: "ROLE_UNKNOWN", message: "HA NOVA can't check right now whether the administrator who connected this computer still is one" };
+  if (user === null || !isAdmin(user)) return { ok: false, status: 401, code: "UNAUTHORIZED", message: "The administrator who connected this computer no longer manages this Home Assistant. Connect it again with a new code." };
+  return resolve();
 }
 
 // An active, non-system owner. is_active must be true (a positive read).

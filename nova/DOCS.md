@@ -205,6 +205,9 @@ made when Home Assistant was set up. An admin with Advanced mode on (in their
 Home Assistant profile) sees it under Settings → People → Users, marked Owner.
 Other administrators open NOVA in the sidebar too: they can make a code,
 revoke a computer, and approve risky changes there (see [The safety check](#the-safety-check)).
+A computer connected with an administrator's code works only while that person
+is still an administrator in Home Assistant. Once they aren't, it is refused
+until they are again; connect it again with a code from someone who is.
 Chat apps stay with the owner.
 
 Each computer gets its own key. It is saved in this computer's password store.
