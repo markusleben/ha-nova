@@ -253,7 +253,8 @@ func (srv *mcpServer) chatFresh(name string, args map[string]json.RawMessage) (*
 	return fresh, nil
 }
 
-// chatLocked (ha-nova serve): a change (ha_call, ha_apply) reads this
+// chatLocked (ha-nova serve): a change (ha_call, ha_apply), or a config
+// plan (its preview shows live config; configAdminFailure's scope), reads this
 // user's access again under mcpVerbLock, right before it runs, with Home
 // Assistant's users read now and then the owner's settings (reread: the
 // App writes them without this lock), and checks its switches and level
@@ -263,7 +264,8 @@ func (srv *mcpServer) chatFresh(name string, args map[string]json.RawMessage) (*
 // it). A refusal, or nil to run.
 func (srv *mcpServer) chatLocked(call *verbCall, name string, args map[string]json.RawMessage) map[string]any {
 	i := slices.IndexFunc(mcpTools, func(t mcpTool) bool { return t.name == name })
-	if srv.chat == nil || name != "ha_call" && name != "ha_apply" || i < 0 {
+	config := name == "ha_plan" && text(args, "kind") != "call"
+	if srv.chat == nil || name != "ha_call" && name != "ha_apply" && !config || i < 0 {
 		return nil
 	}
 	fresh, refusal := srv.chatFresh(name, args)

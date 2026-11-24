@@ -183,15 +183,19 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})
-	t.Run("call or apply, role lowered while it waits for the lock", func(t *testing.T) { // MAR-181
-		for _, apply := range []bool{false, true} {
-			f := household(newFakeHA())
+	t.Run("call, apply, or config plan, role lowered to read only while it waits for the lock", func(t *testing.T) { // MAR-181
+		for _, name := range []string{"ha_call", "ha_apply", "ha_plan"} {
+			f := household(batchHome())
 			s := newServe(t, f, levels([]string{userA}, nil))
-			name, args := "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}
-			if apply { // outside Use the home's allowlist: apply's recompute refuses it below Manage everything
+			args := map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}
+			switch name {
+			case "ha_apply":
 				plan, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "homeassistant.check_config"})["plan"].(map[string]any)
-				name, args = "ha_apply", map[string]any{"plan_id": plan["id"]}
+				args = map[string]any{"plan_id": plan["id"]}
+			case "ha_plan": // its preview would show the script's live config
+				args = map[string]any{"kind": "write", "domain": "script", "id": "s1", "draft": arrival("light.turn_off")}
 			}
+			plans := len(s.userPlans(userA))
 			read := make(chan struct{}, 8)
 			f.mu.Lock()
 			f.extra = func(endpoint string, p map[string]any) (any, bool) {
@@ -218,15 +222,17 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 			case <-read:
 			case <-time.After(time.Second):
 			}
-			demote(f)
+			f.mu.Lock()
+			f.users[1]["group_ids"] = []string{"system-read-only"}
+			f.mu.Unlock()
 			held = false
 			mcpVerbLock.Unlock()
 			<-done
-			if apply && env["status"] == "applying" {
+			if name == "ha_apply" && env["status"] == "applying" {
 				env = s.outcome(t, userA, args)
 			}
-			if envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
-				t.Fatalf("%s: %v (sent %d)", name, env, len(s.posts()))
+			if envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 || len(s.userPlans(userA)) != plans {
+				t.Fatalf("%s: %v (sent %d, plans %d)", name, env, len(s.posts()), len(s.userPlans(userA)))
 			}
 		}
 	})

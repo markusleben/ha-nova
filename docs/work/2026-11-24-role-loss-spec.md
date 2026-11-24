@@ -63,7 +63,7 @@ to 30 s for `mcpVerbLock`; under the lock only `chat-apps.json` is read again
   administrator-only plan needs Manage everything, which only an
   administrator's role gives (`roleCap`). The policy goes on the call, not on
   the server, because the job's `awaitJob` reads the server's.
-- It runs for the ordinary tool path, `applyJob` and `phoneJob`'s first
+- It runs for `ha_call`, `ha_apply` and config plans (`ha_plan` of any kind but a call, whose preview shows live config: found by the sibling sweep), on the ordinary tool path, `applyJob` and `phoneJob`'s first
   phase. `phoneJob` after the tap and the Relay-container ask (`askOutside`,
   after the OK) already read again under the lock; they pass no arguments and
   skip it.
