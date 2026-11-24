@@ -270,12 +270,14 @@ func (srv *mcpServer) chatLocked(call *verbCall, name string, args map[string]js
 	if refusal != nil {
 		return refusal
 	}
-	now := *srv // its checks read the policy from the server
-	now.chat = fresh.reread()
-	if refusal := now.chatRefusal(mcpTools[i]); refusal != nil {
+	// The checks read the policy from a server: a new one, since srv's other
+	// fields belong to the request. The level first: a user removed meanwhile
+	// is CHAT_APPS_REFUSED, not READ_ONLY.
+	now := mcpServer{paths: srv.paths, chat: fresh.reread()}
+	if refusal := now.chatLevelRefusal(mcpTools[i], args); refusal != nil {
 		return refusal
 	}
-	if refusal := now.chatLevelRefusal(mcpTools[i], args); refusal != nil {
+	if refusal := now.chatRefusal(mcpTools[i]); refusal != nil {
 		return refusal
 	}
 	call.chat = now.chat

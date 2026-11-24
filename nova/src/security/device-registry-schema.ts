@@ -83,12 +83,12 @@ function validate(parsed: unknown): RegistryData {
       `unsupported registry version: ${String(obj.version)}`,
     );
   }
-  const checked = obj.roleCheckedDevices ?? [];
-  if (!Array.isArray(obj.devices) || !Array.isArray(checked)) {
+  const [plain, checked] = [obj.devices, obj.roleCheckedDevices ?? []];
+  if (!Array.isArray(plain) || !Array.isArray(checked)) {
     throw new RegistryCorruptError("registry.devices is not an array");
   }
-  const devices = [...obj.devices.map(validateDevice), ...checked.map(validateDevice)];
-  if (devices.some((d, i) => (d.pairedBy !== undefined) !== (i >= obj.devices.length))) {
+  const devices = [...plain.map(validateDevice), ...checked.map(validateDevice)];
+  if (devices.some((d, i) => (d.pairedBy !== undefined) !== (i >= plain.length))) {
     throw new RegistryCorruptError("device.pairedBy is in the wrong list");
   }
   const seen = new Set<string>();

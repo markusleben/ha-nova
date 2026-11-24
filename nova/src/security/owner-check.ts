@@ -52,7 +52,7 @@ export async function checkPairedBy(resolve: () => AuthOutcome, registry: Pick<D
   const principal = first.ok ? first.principal : undefined;
   const maker = principal?.kind === "device" ? registry.list().find((d) => d.deviceId === principal.deviceId)?.pairedBy : undefined;
   if (maker === undefined) return first;
-  const user = await fetchAuthUsers().then((users) => users.find((u) => u.id === maker) ?? null, () => undefined);
+  const user = await fetchAuthUsers().then((users) => users.find((u) => u?.id === maker) ?? null).catch(() => undefined);
   if (user === undefined) return { ok: false, status: 503, code: "ROLE_UNKNOWN", message: "HA NOVA can't check right now whether the administrator who connected this computer still is one" };
   if (user === null || !isAdmin(user)) return { ok: false, status: 401, code: "UNAUTHORIZED", message: "The administrator who connected this computer no longer manages this Home Assistant. Connect it again with a new code." };
   return resolve();
