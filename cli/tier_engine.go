@@ -123,6 +123,7 @@ type tierEngine struct {
 	late         bool            // a step may run after the plan's own call: a delay, a wait, a reload, a for: trigger, a timer
 
 	stateList func() (map[string]json.RawMessage, error) // a config check's states, one read for all (useStateList); nil: one read each
+	warming   sync.WaitGroup                             // warm reads still running (tier_warm.go)
 }
 
 func newTierEngine(s *relaySession) *tierEngine {
@@ -498,8 +499,8 @@ func loadedConfig(s *relaySession, entityID, domain string) (json.RawMessage, bo
 		return nil, false, nil
 	case err != nil: // permission, transport, decode: a failed read, never "missing"
 		return nil, false, err
-	case trimmed == "" || trimmed == "null":
-		return nil, false, nil
+	case trimmed == "" || trimmed == "null" || trimmed == "{}": // Home Assistant runs no such config: unread, never "nothing in it" (MAR-272)
+		return nil, false, fmt.Errorf("Home Assistant answered an empty loaded config for %s", entityID)
 	}
 	return loaded.Config, true, nil
 }

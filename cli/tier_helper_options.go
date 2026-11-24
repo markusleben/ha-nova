@@ -322,6 +322,7 @@ func (e *tierEngine) loud(id string) string {
 			return id + ": group " + related["group"][0]
 		}
 		e.prefetchStates(slices.Concat(related["script"], related["automation"]))
+		e.warmConfigs(related["automation"])
 		for _, script := range related["script"] {
 			st, err := e.state(script)
 			switch {

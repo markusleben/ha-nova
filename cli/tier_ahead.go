@@ -76,9 +76,13 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		automations = append(automations, placeOnly...) // uncapped, like scanConsumers: the read deadline bounds them
 		configs := make([]map[string]any, len(automations))
 		reads = nil
+		states := e.stateList != nil || len(automations) <= relaySessionMaxConcurrent // more: scanConsumers reads them from one state list (prefetchStates)
 		for i, automation := range automations {
 			e.ahead["consumer "+automation] = true
-			reads = append(reads, func() { _, _, _ = e.rawState(automation) }, func() { // the walk reads its state too (runConfig, scanConsumers)
+			if states { // the walk reads its state too (runConfig, scanConsumers)
+				reads = append(reads, func() { _, _, _ = e.rawState(automation) })
+			}
+			reads = append(reads, func() {
 				if named[automation] || !e.placeOnlyMiss(automation, places[automation]) {
 					configs[i] = e.warmConfig(automation)
 				}

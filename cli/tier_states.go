@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -40,19 +41,40 @@ func (e *tierEngine) rawState(id string) (json.RawMessage, bool, error) {
 	return nil, false, fmt.Errorf("Home Assistant answered HTTP %d for %s", status, id)
 }
 
+// stateListError: why an answer to GET /api/states is no state list, nil
+// when it is one. Home Assistant always has states, so an empty or null
+// list, or a row without an entity id, is no answer: never "every entity is
+// absent" (MAR-272).
+func stateListError(status int, body json.RawMessage, err error) error {
+	if err != nil {
+		return err
+	}
+	if status != http.StatusOK {
+		return fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
+	}
+	var rows []struct {
+		EntityID string `json:"entity_id"`
+	}
+	if err := json.Unmarshal(body, &rows); err != nil {
+		return fmt.Errorf("cannot parse the state list: %w", err)
+	}
+	if len(rows) == 0 || slices.ContainsFunc(rows, func(r struct {
+		EntityID string `json:"entity_id"`
+	}) bool {
+		return !strings.Contains(r.EntityID, ".")
+	}) {
+		return errors.New("Home Assistant answered /api/states without a state list")
+	}
+	return nil
+}
+
 func readStateList(s *relaySession) (map[string]json.RawMessage, error) {
 	status, body, err := s.coreGET("/api/states")
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
+	if err := stateListError(status, body, err); err != nil {
+		return nil, err
 	}
 	var rows []json.RawMessage
-	if err == nil {
-		err = json.Unmarshal(body, &rows)
-	}
-	if err == nil && len(rows) == 0 { // a null or empty body is no list: never "every entity is absent" (MAR-272)
-		err = errors.New("Home Assistant answered /api/states without a list")
-	}
-	if err != nil {
+	if err := json.Unmarshal(body, &rows); err != nil {
 		return nil, err
 	}
 	states := make(map[string]json.RawMessage, len(rows))

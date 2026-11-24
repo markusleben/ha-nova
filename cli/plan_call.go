@@ -500,5 +500,6 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	e.checkManagers()
 	e.callServiceListeners() // last: every call above, and each listener's own, may set one off; a manager's calls aren't read
 	e.settleBounds()
+	e.warming.Wait()
 	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }

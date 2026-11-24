@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -233,8 +232,7 @@ type censusRow struct {
 }
 
 // censusRows picks from GET /api/states what the census reads: every
-// automation that is on or still running, and every running script. An
-// empty or null list is no answer: Home Assistant always has states (MAR-272).
+// automation that is on or still running, and every running script.
 func censusRows(status int, body json.RawMessage, err error) ([]*censusRow, error) {
 	var states []struct {
 		EntityID   string `json:"entity_id"`
@@ -244,16 +242,10 @@ func censusRows(status int, body json.RawMessage, err error) ([]*censusRow, erro
 			Current any        `json:"current"` // an automation's run count; any other entity's attribute may be anything
 		} `json:"attributes"`
 	}
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
+	if err := stateListError(status, body, err); err != nil {
+		return nil, err
 	}
-	if err == nil {
-		err = json.Unmarshal(body, &states)
-	}
-	if err == nil && len(states) == 0 {
-		err = errors.New("Home Assistant answered /api/states without any state")
-	}
-	if err != nil {
+	if err := json.Unmarshal(body, &states); err != nil {
 		return nil, err
 	}
 	var rows []*censusRow
