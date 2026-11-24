@@ -108,11 +108,11 @@ func TestMCPApplyCrashIsUnknown(t *testing.T) {
 	srv := &mcpServer{paths: runtimePaths{ConfigDir: t.TempDir()}, told: map[string]bool{}}
 	crash := func(*verbCall) int { panic("boom") }
 	mcpVerbLock.Lock()
-	if env := envelopeOf(srv.runLocked("ha_apply", "", false, crash)); envCode(env) != "OUTCOME_UNKNOWN" || !strings.Contains(nextOf(env), "Never apply this plan again") {
+	if env := envelopeOf(srv.runLocked("ha_apply", "", false, nil, crash)); envCode(env) != "OUTCOME_UNKNOWN" || !strings.Contains(nextOf(env), "Never apply this plan again") {
 		t.Fatalf("apply: %v", env)
 	}
 	mcpVerbLock.Lock()
-	if env := envelopeOf(srv.runLocked("ha_get", "", false, crash)); envCode(env) != "TOOL_ERROR" {
+	if env := envelopeOf(srv.runLocked("ha_get", "", false, nil, crash)); envCode(env) != "TOOL_ERROR" {
 		t.Fatalf("get: %v", env)
 	}
 }

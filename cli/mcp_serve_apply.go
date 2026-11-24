@@ -328,7 +328,7 @@ func (srv *mcpServer) applyJob(job *chatJob, args map[string]json.RawMessage, ar
 		job.result = srv.chatBusy("ha_apply", args, err.Error())
 	} else {
 		close(job.locked)
-		job.result = srv.runLocked("ha_apply", "", false, func(call *verbCall) int {
+		job.result = srv.runLocked("ha_apply", "", false, args, func(call *verbCall) int {
 			call.asking, call.outside = &job.asking, srv.askOutside(job, call) // a Relay ask waits without the lock
 			return applyVerb(call, srv.paths, pinServer("ha_apply", argv, srv.pin))
 		})

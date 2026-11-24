@@ -183,6 +183,53 @@ func TestServeLevelReadAgainBeforeApply(t *testing.T) {
 			t.Fatalf("after the tap: %v (sent %d)", env, len(s.posts()))
 		}
 	})
+	t.Run("call or apply, role lowered while it waits for the lock", func(t *testing.T) { // MAR-181
+		for _, apply := range []bool{false, true} {
+			f := household(newFakeHA())
+			s := newServe(t, f, levels([]string{userA}, nil))
+			name, args := "ha_call", map[string]any{"service": "light.turn_off", "entity_ids": []string{"light.kitchen"}}
+			if apply { // outside Use the home's allowlist: apply's recompute refuses it below Manage everything
+				plan, _ := s.tool(userA, "ha_plan", map[string]any{"kind": "call", "service": "homeassistant.check_config"})["plan"].(map[string]any)
+				name, args = "ha_apply", map[string]any{"plan_id": plan["id"]}
+			}
+			read := make(chan struct{}, 8)
+			f.mu.Lock()
+			f.extra = func(endpoint string, p map[string]any) (any, bool) {
+				if endpoint == "ws" && p["type"] == "config/auth/list" {
+					select {
+					case read <- struct{}{}:
+					default:
+					}
+				}
+				return nil, false
+			}
+			f.mu.Unlock()
+			mcpVerbLock.Lock() // another change runs while the request waits
+			held := true
+			t.Cleanup(func() {
+				if held {
+					mcpVerbLock.Unlock()
+				}
+			})
+			var env map[string]any
+			done := make(chan struct{})
+			go func() { env = s.tool(userA, name, args); close(done) }()
+			select { // a read before the lock would see the role as it was
+			case <-read:
+			case <-time.After(time.Second):
+			}
+			demote(f)
+			held = false
+			mcpVerbLock.Unlock()
+			<-done
+			if apply && env["status"] == "applying" {
+				env = s.outcome(t, userA, args)
+			}
+			if envCode(env) != "CHAT_LEVEL" || len(s.posts()) != 0 {
+				t.Fatalf("%s: %v (sent %d)", name, env, len(s.posts()))
+			}
+		}
+	})
 	t.Run("phone, a batch, level lowered", func(t *testing.T) {
 		s := newServe(t, household(batchHome()), levels([]string{userA}, nil))
 		p := usePhones(t, "mobile_app_anna")

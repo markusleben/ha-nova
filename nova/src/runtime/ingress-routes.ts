@@ -21,7 +21,7 @@ import {
 import { createRouter, type RouteHandler } from "../http/router.js";
 import { readConnectorUrl } from "./chat-connector.js";
 import { createCsrfStore } from "../security/csrf.js";
-import type { HaAuthUser } from "../security/owner-check.js";
+import { readAuthUsers, type HaAuthUser } from "../security/owner-check.js";
 import type { IngressListenerDeps } from "./ingress-listener.js";
 import { functionalRoutes, type FunctionalHandlers } from "./listeners.js";
 
@@ -42,17 +42,7 @@ export function createIngressRoutes(deps: IngressListenerDeps): {
 } {
   const router = createRouter();
   const policies: IngressRoutePolicies = new Map();
-  const fetchAuthUsers = async (): Promise<HaAuthUser[]> => {
-    const result = await deps.wsClient.sendMessage({
-      type: "config/auth/list",
-    });
-    if (!Array.isArray(result)) {
-      // A non-list reply is a Supervisor/HA fault, not "no owner": throw so
-      // the owner check answers 503 (retry) instead of a false 403.
-      throw new Error("config/auth/list returned a non-list result");
-    }
-    return result as HaAuthUser[];
-  };
+  const fetchAuthUsers = () => readAuthUsers(deps.wsClient);
   registerOwnerRoutes(router, policies, deps, fetchAuthUsers);
   if (deps.chatApps !== undefined) {
     const chat = createChatAppsHandlers({ fetchAuthUsers, logger: deps.logger, chatApps: deps.chatApps });

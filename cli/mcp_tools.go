@@ -212,7 +212,7 @@ func (srv *mcpServer) callTool(req rpcRequest) (map[string]any, *rpcError) {
 			srv.noteChange(tool.name, what, busy)
 			return busy, nil
 		}
-		result := srv.runLocked(tool.name, answered, req.forms, run)
+		result := srv.runLocked(tool.name, answered, req.forms, params.Arguments, run)
 		result = withPlanSteps(result, tool.name, params.Arguments)
 		srv.noteChange(tool.name, what, result)
 		return result, nil

@@ -29,8 +29,12 @@ export class RegistryCorruptError extends Error {}
 // "legacy" record once, unless "legacyImportCompleted" was set. Every write
 // clears the record and sets that tombstone, so an older App after a rollback
 // never imports the token again (fail closed); this App never reads either.
+// A computer an administrator connected (pairedBy) is stored under
+// roleCheckedDevices, which Apps before 0.36 never read: after a rollback it
+// has no access instead of outliving that person's role (MAR-170).
 export function serializeRegistry(data: RegistryData): string {
-  return JSON.stringify({ ...data, legacy: null, legacyImportCompleted: true });
+  const checked = (d: DeviceRecord) => d.pairedBy !== undefined;
+  return JSON.stringify({ ...data, devices: data.devices.filter((d) => !checked(d)), roleCheckedDevices: data.devices.filter(checked), legacy: null, legacyImportCompleted: true });
 }
 
 // retired: the file already says what serializeRegistry writes (false for a
@@ -79,10 +83,14 @@ function validate(parsed: unknown): RegistryData {
       `unsupported registry version: ${String(obj.version)}`,
     );
   }
-  if (!Array.isArray(obj.devices)) {
+  const checked = obj.roleCheckedDevices ?? [];
+  if (!Array.isArray(obj.devices) || !Array.isArray(checked)) {
     throw new RegistryCorruptError("registry.devices is not an array");
   }
-  const devices = obj.devices.map(validateDevice);
+  const devices = [...obj.devices.map(validateDevice), ...checked.map(validateDevice)];
+  if (devices.some((d, i) => (d.pairedBy !== undefined) !== (i >= obj.devices.length))) {
+    throw new RegistryCorruptError("device.pairedBy is in the wrong list");
+  }
   const seen = new Set<string>();
   for (const device of devices) {
     if (seen.has(device.deviceId)) {
@@ -195,6 +203,10 @@ function validateDevice(value: unknown): DeviceRecord {
     if (!isValidCloudUserId(record.pairingOwnerId)) {
       throw new RegistryCorruptError("device.pairingOwnerId is invalid");
     }
+  }
+  if (raw.pairedBy !== undefined) {
+    record.pairedBy = stringField("pairedBy");
+    if (!isValidCloudUserId(record.pairedBy)) throw new RegistryCorruptError("device.pairedBy is invalid");
   }
   if (record.state === "pending" && record.pendingExpiresAtMs === undefined) {
     throw new RegistryCorruptError("pending device without pendingExpiresAtMs");

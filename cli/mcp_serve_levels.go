@@ -220,17 +220,10 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 	if srv.chat == nil {
 		return nil
 	}
-	if tool.name == "ha_call" || tool.name == "ha_apply" || srv.chat.stale && tool.name != mcpSkillTool.name {
-		fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true, chatWait(srv.since))
-		switch {
-		case code == http.StatusServiceUnavailable && (why == chatBusyWhy || why == chatQueuedWhy):
-			return srv.chatBusy(tool.name, args, why)
-		case code == http.StatusServiceUnavailable:
-			return chatStopped(tool.name, refusedWith("ACCESS_UNKNOWN", why,
-				"Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."))
-		case fresh == nil:
-			return chatStopped(tool.name, refusedWith("CHAT_APPS_REFUSED", "HA NOVA no longer accepts changes from this Home Assistant user in chat apps",
-				"Tell the user nothing changed: the Home Assistant owner changed who may use HA NOVA in chat apps, or their Home Assistant account changed."))
+	if srv.chat.stale && tool.name != mcpSkillTool.name { // a change reads them again under the lock (chatLocked)
+		fresh, refusal := srv.chatFresh(tool.name, args)
+		if refusal != nil {
+			return refusal
 		}
 		srv.chat = fresh
 	}
@@ -241,6 +234,52 @@ func (srv *mcpServer) chatGate(tool mcpTool, args map[string]json.RawMessage) ma
 		return refusal
 	}
 	return srv.chatLevelRefusal(tool, args)
+}
+
+// chatFresh: this user's policy with Home Assistant's users read now, or
+// the refusal when it can't be read or allows nothing.
+func (srv *mcpServer) chatFresh(name string, args map[string]json.RawMessage) (*chatPolicy, map[string]any) {
+	fresh, code, why := srv.chat.bridge.policy(srv.chat.user, true, chatWait(srv.since))
+	switch {
+	case code == http.StatusServiceUnavailable && (why == chatBusyWhy || why == chatQueuedWhy):
+		return nil, srv.chatBusy(name, args, why)
+	case code == http.StatusServiceUnavailable:
+		return nil, chatStopped(name, refusedWith("ACCESS_UNKNOWN", why,
+			"Tell the user nothing changed: HA NOVA couldn't check their Home Assistant account just now. They can try again in a moment."))
+	case fresh == nil:
+		return nil, chatStopped(name, refusedWith("CHAT_APPS_REFUSED", "HA NOVA no longer accepts changes from this Home Assistant user in chat apps",
+			"Tell the user nothing changed: the Home Assistant owner changed who may use HA NOVA in chat apps, or their Home Assistant account changed."))
+	}
+	return fresh, nil
+}
+
+// chatLocked (ha-nova serve): a change (ha_call, ha_apply) reads this
+// user's access again under mcpVerbLock, right before it runs, with Home
+// Assistant's users read now and then the owner's settings (reread: the
+// App writes them without this lock), and checks its switches and level
+// again (MAR-181): a user removed, lowered, or demoted in Home Assistant
+// while the request waited for the lock runs nothing. The call carries that
+// policy; srv.chat stays as the request read it (its job's awaitJob reads
+// it). A refusal, or nil to run.
+func (srv *mcpServer) chatLocked(call *verbCall, name string, args map[string]json.RawMessage) map[string]any {
+	i := slices.IndexFunc(mcpTools, func(t mcpTool) bool { return t.name == name })
+	if srv.chat == nil || name != "ha_call" && name != "ha_apply" || i < 0 {
+		return nil
+	}
+	fresh, refusal := srv.chatFresh(name, args)
+	if refusal != nil {
+		return refusal
+	}
+	now := *srv // its checks read the policy from the server
+	now.chat = fresh.reread()
+	if refusal := now.chatRefusal(mcpTools[i]); refusal != nil {
+		return refusal
+	}
+	if refusal := now.chatLevelRefusal(mcpTools[i], args); refusal != nil {
+		return refusal
+	}
+	call.chat = now.chat
+	return nil
 }
 
 // chatPlanFailure: apply's check under the verb lock, on the plan it
