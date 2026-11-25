@@ -80,7 +80,7 @@ release:
 
     - **Updating a Mac from 0.31? HA NOVA asks you to pair it again once.** It's one Home Assistant sign-in, about a minute (with Home Assistant Link at home, a second one for Link). Run `ha-nova setup` when HA NOVA says so.
     - **On a slow connection, planning a light call takes less than half the time.** HA NOVA sends a plan's reads together. At 450 ms per request: 2.9 s instead of 7.1 s, and 4.8 s instead of 10 s with a thermostat helper.
-    - **One check finds what your automations use that no longer exists.** It reads your automations and scripts, changes nothing, and lists named entities, devices, areas, and actions that are gone, disabled, or not loaded.
+    - **One check finds what your automations use that no longer exists.** On a computer, it reads your automations and scripts and lists named entities, devices, areas, and actions that are gone, disabled, or not loaded.
     - **Rename up to 19 entities to one naming scheme with one confirmation.** HA NOVA learns the scheme from names that agree and shows each new name and what uses it. Updating those uses has its own preview.
 
     ## What To Watch
@@ -90,7 +90,6 @@ release:
     - **Going back to an older NOVA App disconnects the computers an administrator connected after the update.** Connect them again; a computer connected on the older App isn't checked until you connect it again on 0.36.
     - **Now and then an everyday call asks for your OK.** When Home Assistant answers a read with nothing, or more listeners for calls appear while HA NOVA plans one, like a dashboard opening, the plan asks.
     - **Renaming an entity id stops what uses the old id until it is updated.** HA NOVA names those automations, scripts, and dashboards first and offers to update them right after: say yes to keep them working.
-    - **In Claude and ChatGPT, checking automations no longer looks for missing entities.** The check says so. The new one-call check runs only where your AI uses HA NOVA on your computer.
     - **Some saved plans need a fresh preview after updating.** Plan the change again and review the new preview before you confirm.
     - **Near a thermostat's heater, an automation whose trigger picks its entity with a live template still makes calls ask.** The plan names that automation.
     - **The standalone container connects with its token only.** It no longer logs a six-digit code at startup, and `ha-nova setup` asks for its token (`RELAY_AUTH_TOKEN`). The NOVA Relay App still pairs as before.
