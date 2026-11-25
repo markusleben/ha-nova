@@ -18,6 +18,7 @@ describe("rename scheme (#979)", () => {
     expect(refactoring).toContain("Plan it in the same turn as the Report, before any ask: the copy is the plan's first item, never a separate `relay backups` save.");
     expect(refactoring).toContain("then each consumer by name and what happens to it");
     expect(refactoring).toContain("the rename's confirmation never covers them");
+    expect(refactoring).toContain("A yes to that offer covers the offered automations and scripts the reply accepts (a plain yes: all of them): draft those and show their preview in that same turn, never a which-ones question when the reply leaves no choice open");
     expect(refactoring).toContain("Keep that tier: never split the pass to get a lighter one.");
     expect(refactoring).toContain("never offer `--no-snapshot` for this pass");
   });
