@@ -110,11 +110,10 @@ func executeRaw(paths runtimePaths, s *relaySession, env *verbEnvelope, items []
 		if refusal == nil && gerr == nil && item.Endpoint == "core" {
 			refusal, gerr = sceneUnchanged(s, payload, basis)
 		}
-		if refusal == nil && gerr == nil {
-			refusal, gerr = helperUnchanged(s, item.Endpoint, payload, basis)
-		}
-		if refusal == nil && gerr == nil {
-			refusal, gerr = fileUnchanged(s, item.Endpoint, payload, basis)
+		for _, unchanged := range []func(*relaySession, string, map[string]any, map[string]any) (error, error){helperUnchanged, fileUnchanged, renameUnchanged} {
+			if refusal == nil && gerr == nil {
+				refusal, gerr = unchanged(s, item.Endpoint, payload, basis)
+			}
 		}
 		switch {
 		case refusal != nil && !sent:

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -88,22 +90,150 @@ func namesLive(live map[string]any, domain string, payload map[string]any) map[s
 	return held
 }
 
+// renameHeld: the registry entry a rename item changes (name, aliases,
+// new_entity_id, name_by_user) as it is now: its registry id and the
+// fields the item sets; "absent" when Home Assistant doesn't hold it,
+// "unreadable" when it can't be read; key is "" for any other item.
+func renameHeld(s *relaySession, endpoint string, payload map[string]any) (key string, held any) {
+	wsType, _ := payload["type"].(string)
+	idKey := map[string]string{"config/entity_registry/update": "entity_id", "config/device_registry/update": "device_id"}[wsType]
+	id, _ := payload[idKey].(string)
+	touches := false
+	for _, field := range []string{"name", "aliases", "new_entity_id", "name_by_user"} {
+		_, sent := payload[field]
+		touches = touches || sent
+	}
+	if endpoint != "ws" || idKey == "" || id == "" || !touches || s == nil {
+		return "", nil
+	}
+	domain := strings.TrimSuffix(strings.TrimPrefix(wsType, "config/"), "/update")
+	if domain == "entity_registry" {
+		id = strings.ToLower(id)
+	}
+	live, err := readNames(s, domain, id)
+	switch {
+	case err != nil:
+		return domain + "/" + id, "unreadable"
+	case live == nil:
+		return domain + "/" + id, "absent"
+	}
+	entry := map[string]any{"id": live["id"]}
+	for key := range payload {
+		if key != "type" && key != idKey {
+			entry[key] = live[key]
+		}
+	}
+	return domain + "/" + id, entry
+}
+
+// bindRename puts each rename item's entry into the plan's basis
+// (renameHeld): another entry under that id, or a change to what it sets,
+// is drift at apply, so a pass of many renames changes exactly the entries
+// its preview showed.
+func (n *rawNamer) bindRename(endpoint string, payload map[string]any) {
+	key, held := renameHeld(n.s, endpoint, payload)
+	if key == "" {
+		return
+	}
+	if n.renames == nil {
+		n.renames = map[string]any{}
+	}
+	if was, _ := n.renames[key].(map[string]any); was != nil { // another item on the same entry: both fields bound
+		if now, _ := held.(map[string]any); now != nil {
+			for field, value := range now {
+				was[field] = value
+			}
+			return
+		}
+	}
+	n.renames[key] = held
+}
+
+// renamesMatchCopy: when a plan's leading metadata copy is a list of
+// registry rows (a rename pass, safe-refactoring.md → Rename Scheme), each
+// renamed entry must be in it as the plan reads it now: its registry id and
+// every field the rename sets. A copy of another entry, or of an older
+// read, would put back the wrong thing.
+func (n *rawNamer) renamesMatchCopy(items []rawRequest) error {
+	var rows []any
+	for _, item := range items {
+		payload, _ := decodeObject(item.Payload)
+		if item.Endpoint != "backups" || payload["action"] != "save" {
+			break
+		}
+		if list, isList := payload["data"].([]any); isList && payload["category"] == "metadata" {
+			rows = append(rows, list...)
+		}
+	}
+	if rows == nil || n.renames == nil {
+		return nil
+	}
+	copied := map[string]map[string]any{}
+	for _, row := range rows {
+		fields, _ := row.(map[string]any)
+		if entityID, _ := fields["entity_id"].(string); entityID != "" {
+			copied["entity_registry/"+strings.ToLower(entityID)] = fields
+		} else if id, _ := fields["id"].(string); id != "" {
+			copied["device_registry/"+id] = fields
+		}
+	}
+	keys := slices.Sorted(maps.Keys(n.renames))
+	for _, key := range keys {
+		id := key[strings.Index(key, "/")+1:]
+		held, _ := n.renames[key].(map[string]any)
+		row := copied[key]
+		switch {
+		case held == nil:
+			return fmt.Errorf("%s can't be renamed: Home Assistant doesn't hold it, or it can't be read", id)
+		case row == nil:
+			return fmt.Errorf("the copy saved first holds no row for %s", id)
+		}
+		for _, field := range slices.Sorted(maps.Keys(held)) {
+			if field != "new_entity_id" && !jsonEqual(row[field], held[field]) {
+				return fmt.Errorf("the copy saved first differs from %s as it is now (%s), so its way back would be wrong", id, field)
+			}
+		}
+	}
+	return nil
+}
+
+// renameUnchanged reads a rename item's entry again right before it is
+// sent: one that differs from the preview's (an earlier step or anything
+// else moved another entry onto that id), or can't be read, is not sent.
+func renameUnchanged(s *relaySession, endpoint string, payload, basis map[string]any) (refusal, err error) {
+	key, now := renameHeld(s, endpoint, payload)
+	if key == "" {
+		return nil, nil
+	}
+	id := key[strings.Index(key, "/")+1:]
+	if now == "unreadable" {
+		return nil, fmt.Errorf("cannot read %s again before its rename", id)
+	}
+	renames, _ := basis["renames"].(map[string]any)
+	held, _ := renames[key].(map[string]any)
+	entry, _ := now.(map[string]any) // nil for "absent"
+	same := held != nil && entry != nil || held == nil && entry == nil && jsonEqual(now, renames[key])
+	for field, value := range entry {
+		same = same && jsonEqual(value, held[field])
+	}
+	if !same {
+		return fmt.Errorf("%s changed in Home Assistant since the preview, so it was not renamed", id), nil
+	}
+	return nil, nil
+}
+
 // calmNames: a rename plan runs without a preview only when the write is
 // its one reason, its target reads live and sits in no access family
 // (accessEntity, accessDevice: a failed read counts as one), and its way
 // back can be added without replacing or evicting another (checkpointFits).
-// Every rename plan's live state enters its basis (namesLive).
+// Every rename item's live state enters its basis (bindRename).
 func (e *tierEngine) calmNames(n *rawNamer, items []rawRequest) bool {
 	domain, id, payload, ok := rawNamesTarget(items)
 	if !ok {
 		return false
 	}
 	live, err := readNames(e.s, domain, id)
-	held := namesLive(live, domain, payload)
-	if held != nil {
-		n.renames = map[string]any{domain + "/" + id: held}
-	}
-	if held == nil || err != nil || e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonRawWrite ||
+	if namesLive(live, domain, payload) == nil || err != nil || e.level != tierPreview || len(e.reasons) != 1 || e.reasons[0].Code != reasonRawWrite ||
 		!e.onlyInformationalNotes() || len(e.skipped) > 0 || len(e.lost) > 0 {
 		return false
 	}

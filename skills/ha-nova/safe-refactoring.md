@@ -46,22 +46,24 @@ Only proceed with permanent deletion after the delete's typed confirmation (see 
 
 ## Entity Rename Workflow
 
-Renaming an entity can break automations and scripts that reference the old ID.
+Renaming an entity id breaks every automation, script, dashboard, and template that names the old id; a name change alone breaks none of them. Several renames at once: Rename Scheme below.
 
 ### Step 1: Find All References
 
 ```text
-ha-nova relay ws --data-file <payload-file>
+ha-nova get <entity_id> --references
 ```
+
+It also reads templates, dashboards, and energy sources, which `search/related` does not index. It is not complete either: name its `not_scanned` rows and its `not_covered` line (template entities, Node-RED, YAML-only integrations, and more) — never call a rename safe because the scan is empty.
 
 ### Step 2: Show Impact
 
-List all configs that reference this entity. For each, note whether the reference is in:
+List every holder that names this entity by name. For each, note whether the reference is in:
 - Triggers (entity_id in trigger config)
 - Conditions (entity_id or template referencing entity)
 - Actions (target entity_id or template)
 
-Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-updated by HA — they will break silently. `ha-nova get <entity_id> --references` finds them, plus dashboards and energy sources, which `search/related` does not index.
+Template references (`states('old.entity_id')`, `is_state(...)`) are NOT auto-updated by HA — they break silently.
 
 ### Step 3: Rename
 
@@ -80,7 +82,20 @@ For each consumer automation/script found in Step 1:
 
 ### Step 5: Verify
 
-Re-run `search/related` on the NEW entity_id to confirm all references are updated. Check that no configs still reference the old ID.
+Re-run `ha-nova get <old entity_id> --references`: no hit may remain outside what the user chose to leave, and its coverage limits are said again.
+
+## Rename Scheme (many entities in one pass)
+
+For "give all kitchen lights the same naming scheme", "rename these sensors and their ids", and any request that renames two or more entities or devices. Owner: `ha-nova:organize`. One pass is one raw plan: one preview, one confirmation.
+
+1. **Targets.** Resolve the set per organize → Bulk Target Resolution (saved id list). A pass holds at most 19 renames (entity or device rows): its plan is 20 items, the snapshot first. More: several passes, each with its own preview and confirmation; say so up front.
+2. **Convention.** A scheme the user states wins. Otherwise compare independent devices in the same domain, area, and floor (an area's floor: its `floor_id` in `config/area_registry/list`; `ha-nova find --area <area_id> --domain <domain>`; device names from `config/device_registry/list`), never several entities of one device: entity name, entity id, device name. Infer a pattern only from at least two examples that agree. Examples that disagree: show each pattern with its examples and ask which one, before any draft. One example or none: propose a scheme and say it is a proposal. Never take a household convention from one example.
+3. **Map.** Per row: device name (only when asked; once per device), entity name, entity id before → after. Names follow `../organize/display-fields.md` → Names: the full name Home Assistant will show (the device name in front where it adds it), and for a device rename each of its entities' full names that change. A new id stays in its domain. Leave out, and say why: a new id that already exists (`ha-nova get <new id>` finds it, registry or state), two rows with one new id, a chain or swap (a new id that is another row's old id).
+4. **Consumers**, for id changes only (a name change keeps every reference by id working): `ha-nova get <old id> --references` once per changed entity id; its hits cover the whole device, so keep only those whose `needle` is exactly that old id, saved as the holder list. A hit whose `needle` is that row's registry id keeps working: list it as unchanged; hits on the device id or a sibling entity are not affected. Its `related` holders (scenes, groups) that no hit names: list them too. Name each holder by its `name` (friendly name or dashboard title), never by its id alone. `managed: yaml` hits go to `ha-nova:yaml-config`, never into a batch. A `not_scanned` automation, script, or dashboard read blocks that row's id change: offer its name change alone.
+5. **Preview.** One Report: per row the full name, entity name, entity id before → after; then each consumer by name and what happens to it ("stops working until updated: Morning lights, Hall dashboard"); then the coverage line (`not_covered`). Then one `ha-nova plan raw --file <requests.json>` (a raw plan, not a grouped change set): first `{"endpoint":"backups","payload":{"action":"save","category":"metadata","name":"auto-rename-<slug>","data":[...]}}` (`config-snapshots.md`) with each target's registry row exactly as `config/entity_registry/get` (devices: their `config/device_registry/list` row) returned it, its `id` included, then per row one `{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"<old id>","name":"…","new_entity_id":"…"}}` (both fields together; a device: `config/device_registry/update` with `device_id` and `name_by_user`), in map order. Plan it in the same turn as the Report, before any ask: the copy is the plan's first item, never a separate `relay backups` save. Its `say` closes the Report: one ask for the whole pass, at the tier the CLI decided (a rename that reaches a lock, door, or alarm automation, or more acted-on entities than it can check, asks the person: window, phone, or code). Keep that tier: never split the pass to get a lighter one. Never one ask per row.
+6. **Apply** per `next_step`: the snapshot first, then the renames in order, stopping at the first that does not go through. Each rename is bound to the entry the preview read: another entry under its id, or a changed name, is drift (nothing sent) or stops that row. The snapshot fails: nothing is renamed; say so, never offer `--no-snapshot` for this pass. Report `result.items` as a ledger (done, stopped, not sent) and verify each done row from its registry row (`config/entity_registry/get` by the new id; a device: its `config/device_registry/list` row), not its state.
+7. **Consumers next.** Right after verified id changes, offer the re-points, each in its own flow — the rename's confirmation never covers them: automations and scripts as drafts with each changed id replaced (templates included, nothing else changed), 2 to 20 as one `plan batch` (`batch-safety.md` → CLI Batch), one alone through `ha-nova:write`; a blueprint instance: the id in its input through `ha-nova:write`, never in a batch; dashboards through `ha-nova:dashboard`, one plan each; other families per `../device/SKILL.md` → Hit Routing. Then `ha-nova get <old id> --references` per changed id, filtered the same way: no holder of the saved list may still name it, except those the user chose to leave.
+8. **Way back.** Load the pass's own snapshot (`auto-rename-<slug>`). Per done row of its ledger, read the entry now (by its new id): only one whose registry `id` matches the snapshot row and whose touched fields still hold what the pass set goes back, with exactly those fields set to the snapshot's values (a `null` name stays `null`). One pass with those rows (same preview and one confirmation). Once it is applied, plan only the re-points this pass made back: one automation or script: `ha-nova plan revert --target <config_id>`; two or more: drafts with each new id replaced by its old one, as one `plan batch` (revert plans can't be batched, and applied one by one each drifts on the others), one ask. A row or config changed since is shown and asked about, never overwritten.
 
 ## Safe Migration Pattern
 
