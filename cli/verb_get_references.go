@@ -60,6 +60,7 @@ type refEntity struct {
 type refHit struct {
 	Family   string   `json:"family"`
 	ID       string   `json:"id"`
+	Name     string   `json:"name,omitempty"` // the holder's friendly name or dashboard title
 	ConfigID string   `json:"config_id,omitempty"`
 	Managed  string   `json:"managed,omitempty"` // "yaml": not editable through plan write or the dashboard editor
 	Needle   string   `json:"needle"`
@@ -117,7 +118,7 @@ type refState struct {
 func scanReferences(s *relaySession, entityID string) (*referencesResult, error) {
 	warmReferences(s, entityID)
 	var registry []refRegistryRow
-	if err := s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &registry, "the entity registry"); err != nil {
+	if err := deadRefList(s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &registry, "the entity registry"), registry == nil, "the entity registry"); err != nil {
 		return nil, err
 	}
 	status, body, err := s.coreGET("/api/states")
@@ -126,7 +127,7 @@ func scanReferences(s *relaySession, entityID string) (*referencesResult, error)
 	}
 	var states []refState
 	if err == nil {
-		err = json.Unmarshal(body, &states)
+		err = deadRefList(json.Unmarshal(body, &states), states == nil, "the state list")
 	}
 	if err != nil {
 		return nil, err
@@ -140,7 +141,10 @@ func scanReferences(s *relaySession, entityID string) (*referencesResult, error)
 	if err != nil {
 		return nil, err
 	}
-	sc := &refScanner{needles: needles, res: res}
+	sc := &refScanner{needles: needles, res: res, names: map[string]string{}}
+	for _, st := range states {
+		sc.names[st.EntityID], _ = st.Attributes["friendly_name"].(string)
+	}
 	sc.scanHolders(s, registry, states)
 	platform := map[string]string{}
 	for _, row := range registry {
@@ -323,6 +327,7 @@ func (res *referencesResult) notifyService(s *relaySession, deviceName string, r
 type refScanner struct {
 	needles []string
 	res     *referencesResult
+	names   map[string]string // a holder's id → its friendly name or title (record)
 	mu      sync.Mutex
 }
 
@@ -381,19 +386,6 @@ func (sc *refScanner) find(doc any) map[string]*refFound {
 	}
 	walk("", doc)
 	return hits
-}
-
-// record appends one hit per needle found.
-func (sc *refScanner) record(family, id, configID, managed string, hits map[string]*refFound) {
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	for needle, f := range hits {
-		h := refHit{Family: family, ID: id, ConfigID: configID, Managed: managed, Needle: needle, Paths: f.paths, Template: f.template}
-		if sc.res.Device != nil {
-			h.Keep = sc.res.Device.keep[needle]
-		}
-		sc.res.Hits = append(sc.res.Hits, h)
-	}
 }
 
 func joinRefPath(path, key string) string {

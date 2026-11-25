@@ -79,9 +79,12 @@ func (sc *refScanner) scanConfigs(s *relaySession, registry []refRegistryRow, st
 					err = errors.New("no readable config (a disabled YAML item, or not loaded)")
 				}
 			}
-			var doc any
+			var doc map[string]any
 			if err == nil {
 				err = json.Unmarshal(raw, &doc)
+			}
+			if _, instance := doc["use_blueprint"].(map[string]any); err == nil && !instance {
+				err = deadRefShape(it.domain, doc)
 			}
 			if err != nil {
 				sc.gap(it.domain, it.entityID, err.Error())
@@ -89,6 +92,9 @@ func (sc *refScanner) scanConfigs(s *relaySession, registry []refRegistryRow, st
 			}
 			sc.mu.Lock()
 			sc.res.Scanned[it.domain]++
+			if alias, _ := doc["alias"].(string); sc.names != nil && sc.names[it.entityID] == "" && alias != "" {
+				sc.names[it.entityID] = alias // a disabled one has no state to name it
+			}
 			sc.mu.Unlock()
 			sc.scan(it.domain, it.entityID, it.configID, managed, doc)
 			sc.scanBlueprint(s, it.domain, it.entityID, it.configID, doc)
@@ -121,7 +127,7 @@ func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
 			Mode string `json:"mode"`
 		} `json:"config"`
 	}
-	if err := s.wsDecode(map[string]any{"type": "get_panels"}, &panels, "the panels"); err != nil {
+	if err := deadRefList(s.wsDecode(map[string]any{"type": "get_panels"}, &panels, "the panels"), panels == nil, "the panels"); err != nil {
 		return nil, nil, err
 	}
 	var keys []string
@@ -194,6 +200,12 @@ func (sc *refScanner) scanDashboards(boards []lovelaceBoard, gaps []refGap, err 
 		if b.Mode == "yaml" {
 			managed = "yaml"
 		}
+		sc.mu.Lock()
+		if sc.names == nil {
+			sc.names = map[string]string{}
+		}
+		sc.names[b.URLPath] = b.Title
+		sc.mu.Unlock()
 		sc.scan("dashboard", b.URLPath, "", managed, b.Config)
 	}
 }
@@ -266,4 +278,17 @@ func (sc *refScanner) mask(v any) any {
 		return t
 	}
 	return v
+}
+
+// record appends one hit per needle found, with its holder's name.
+func (sc *refScanner) record(family, id, configID, managed string, hits map[string]*refFound) {
+	sc.mu.Lock()
+	defer sc.mu.Unlock()
+	for needle, f := range hits {
+		h := refHit{Family: family, ID: id, Name: sc.names[id], ConfigID: configID, Managed: managed, Needle: needle, Paths: f.paths, Template: f.template}
+		if sc.res.Device != nil {
+			h.Keep = sc.res.Device.keep[needle]
+		}
+		sc.res.Hits = append(sc.res.Hits, h)
+	}
 }

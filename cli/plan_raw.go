@@ -217,6 +217,7 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 		if item.Endpoint == "ws" && payload["type"] == "config/device_registry/remove" {
 			n.deviceEntities(payload["device_id"])
 		}
+		n.bindRename(item.Endpoint, payload)
 		flows := max(e.rawShoppingList(item.Endpoint, payload), e.rawListeners(item.Endpoint, payload))
 		e.markTyped = e.markTyped || why == "skill_typed" && flows < tierTyped
 		level = max(level, flows)
@@ -225,6 +226,10 @@ func computeRawPlan(s *relaySession, env *verbEnvelope, items []rawRequest) (*ti
 			entry.copy = copies[i]
 		}
 		result.Items = append(result.Items, entry)
+	}
+	if err := n.renamesMatchCopy(items); err != nil {
+		return nil, storedPlan{}, &verbFailure{exit: verbExitRefused, code: "REFUSED", message: err.Error() + "; nothing was planned or sent",
+			next: "Read each entry again (config/entity_registry/get; a device: config/device_registry/list), save exactly those rows in the copy, and plan again."}
 	}
 	if e.calmNames(n, items) {
 		e.level, result.Items[0].Tier = tierOrdinary, tierOrdinary.String()

@@ -25,7 +25,7 @@ skills/
   ha-nova/config-body-filter.jq (shared jq asset — canonical REST config-body extractor)
   ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules, dead-reference sweep via `ha-nova get --dead-references`)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
-  ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
+  ha-nova/safe-refactoring.md   (reference doc — rename, rename scheme for many entities, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
   ha-nova/one-shot-automations.md (reference doc — self-disabling one-shots, deadline expiry, duration requests)
   ha-nova/write-safety.md       (reference doc — pre-write diff + durable update-revert; SSOT for write/ + helper/)
