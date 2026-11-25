@@ -16,6 +16,7 @@ node scripts/e2e/testbed/agent-updates.mjs # update advisor: an agent checks bef
 node scripts/e2e/testbed/checkup.mjs       # system check-up: the map section on the bed (no Supervisor), log facts as counts
 node scripts/e2e/testbed/agent-checkup.mjs # system check-up: an agent answers "is my HA OK, would my backup work" and changes nothing
 node scripts/e2e/testbed/agent-authoring.mjs # HA 2026.7+ authoring: an agent creates a room-triggered automation, explains and reviews a floor-targeted one
+node scripts/e2e/testbed/agent-references.mjs # dead references and a rename pass: one sweep that writes nothing; one plan and one ask for many renames, re-points after, then undo
 npm run testbed:down                       # containers, volumes, tokens, runtime config: gone
 ```
 

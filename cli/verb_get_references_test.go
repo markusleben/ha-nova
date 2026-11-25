@@ -53,7 +53,7 @@ func refHome(t *testing.T, extra func(endpoint string, payload map[string]any) (
 		{"entity_id": "sensor.pixel_7_battery", "state": "80", "attributes": map[string]any{"device_class": "battery", "unit_of_measurement": "%"}},
 		{"entity_id": "device_tracker.pixel_7", "state": "home", "attributes": map[string]any{"source_type": "gps"}},
 		{"entity_id": "sensor.pixel_7_battery_2", "state": "1", "attributes": map[string]any{}},
-		{"entity_id": "automation.low_battery", "state": "on", "attributes": map[string]any{"id": "100"}},
+		{"entity_id": "automation.low_battery", "state": "on", "attributes": map[string]any{"id": "100", "friendly_name": "Low battery"}},
 		{"entity_id": "automation.yaml_without_id", "state": "on", "attributes": map[string]any{}},
 		{"entity_id": "script.package_script", "state": "off", "attributes": map[string]any{}},
 		{"entity_id": "sensor.pixel_7_battery_meter", "state": "3", "attributes": map[string]any{"source": "sensor.pixel_7_battery"}},
@@ -236,6 +236,12 @@ func TestGetReferencesScansEveryHolderForTheWholeDevice(t *testing.T) {
 	// The blueprint body's own reference is flagged: the blueprint, not the
 	// instance, holds it; the instance's input stays an ordinary hit.
 	// A merged id reaches its other split device too: a re-point keeps it.
+	for key, name := range map[string]string{"automation automation.low_battery sensor.pixel_7_battery": "Low battery",
+		"automation automation.arrive dev1": "Arrive", "dashboard lovelace device_tracker.pixel_7": "Overview", "dashboard dashboard-yaml sensor.pixel_7_battery": "dashboard-yaml"} {
+		if hits[key].Name != name {
+			t.Errorf("%s: holder named %q, want %q", key, hits[key].Name, name)
+		}
+	}
 	if h := hits["automation automation.arrive merged1"]; strings.Join(h.Keep, ",") != "devX" {
 		t.Errorf("merged id hit must keep its other split devices: %+v", h)
 	}
