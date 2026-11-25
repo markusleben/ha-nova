@@ -38,7 +38,7 @@ describe("release notes contract", () => {
     expect(goreleaser).not.toContain("winget");
   });
 
-  it("keeps v0.35.0 release-facing wording aligned to the shipped stack", () => {
+  it("keeps v0.36.0 release-facing wording aligned to the shipped stack", () => {
     const relayVersion = /^version:\s*"([^"]+)"\s*$/m.exec(readFileSync("nova/config.yaml", "utf8"))?.[1] ?? "";
     // Any App version the notes name is the App in nova/config.yaml: the App promote PR's `npm run bump -- --relay` sets both.
     const notedApps = [...(stableNotes ?? "").matchAll(/NOVA (?:Relay |App to )(\d+\.\d+\.\d+)/g)];
@@ -46,19 +46,28 @@ describe("release notes contract", () => {
     for (const [, noted] of notedApps) {
       expect(noted, "notes name the shipped NOVA Relay version").toBe(relayVersion);
     }
-    // Batched reads (MAR-180, ws_batch) and the NOVA page link in the phone question (MAR-266) come from the App, and the App's check runs the bundled CLI, so the App update leads.
+    // The role check on a computer an administrator connected (MAR-170) runs in the App, and the App's check runs the bundled CLI, so the App update leads.
     expect(stableNotes).toMatch(/^\*\*Update the NOVA App to \d+\.\d+\.\d+\.\*\* Much of this release runs in the App, so update it and HA NOVA on every computer together\./);
     expect(stableNotes).toContain("Settings > Apps > NOVA Relay > Update");
     expect(stableNotes).toContain("Then run `ha-nova update` on each computer.");
-    // No MCP tool text changed in 0.35, so ChatGPT needs no Refresh.
+    // No MCP tool text changed in 0.36, so ChatGPT needs no Refresh.
     expect(stableNotes).not.toContain("chatgpt.com/plugins");
     // A 0.31 Mac that skipped 0.32 still re-pairs once, and its CLI's notice shows the first New Features bullet and its JSON the first action item (0.32 spec §5.1); cli/release_digest_mac_repair_test.go proves it.
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // 0.35: the plain tap (MAR-266, #1289) and batched reads (MAR-180, #1287).
-    expect(stableNotes).toContain("**A plain tap on a phone question no longer loses it.**");
-    expect(stableNotes).toContain("**Planning a change waits for fewer round trips.** With this release's NOVA App");
+    // 0.36: faster plans (MAR-280, #1299), the dead-reference sweep (#978, #1300; computer only, and chat audits no longer check references), and the naming-scheme rename (#979, #1301).
+    expect(stableNotes).toContain("**On a slow connection, planning a light call takes less than half the time.**");
+    expect(stableNotes).toContain("**One check finds what your automations use that no longer exists.**");
+    expect(stableNotes).toContain("**In Claude and ChatGPT, checking automations no longer looks for missing entities.**");
+    expect(stableNotes).toContain("**Rename up to 19 entities to one naming scheme with one confirmation.**");
+    expect(stableNotes).toContain("**Renaming an entity id stops what uses the old id until it is updated.**");
+    // Role loss (MAR-170, #1298): computers connected before 0.36 keep access until reconnected, and an App rollback disconnects the new ones.
+    expect(stableNotes).toContain("**A computer connected with an administrator's code now works only while that person stays an administrator.**");
+    expect(stableNotes).toContain("For a computer connected before 0.36, revoke it on the NOVA page and connect it again.");
+    expect(stableNotes).toContain("**Going back to an older NOVA App disconnects the computers an administrator connected after the update.**");
+    // Empty answers and the listener recheck fail closed (MAR-272, #1299).
+    expect(stableNotes).toContain("**Now and then an everyday call asks for your OK.**");
     // The plan hash changed (#1288): a plan made before the update asks for a fresh preview.
     expect(stableNotes).toContain("**Some saved plans need a fresh preview after updating.**");
     // A live-template trigger still asks, and the plan names it (#1286, decision A).
@@ -66,7 +75,7 @@ describe("release notes contract", () => {
     // The standalone container's token-only pairing (R10, #1263) is a behavior change a container user must know.
     expect(stableNotes).toContain("**The standalone container connects with its token only.**");
     expect(stableNotes).toContain("RELAY_AUTH_TOKEN");
-    // Earlier trade-offs still reach a computer that updates straight from 0.31 to 0.34.
+    // Earlier trade-offs still reach a computer that updates straight from 0.31 to 0.35.
     expect(stableNotes).toContain("**YAML thermostat checks need the NOVA App's file access on.**");
     expect(stableNotes).toContain("**A computer paired before 0.32 pairs again once to confirm with one click.**");
     expect(stableNotes).toContain("**One-click confirming trusts that computer.** On Windows and Linux, any program running as you could confirm without a click.");
@@ -75,10 +84,10 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't");
     expect(stableNotes).toContain("**A listener HA NOVA can't name on the logbook's events no longer makes a call ask.**");
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
-    // Fixes: heater checks (MAR-262, #1286), registry-id triggers (MAR-263, #1286), delete copies (MAR-267, #1288).
-    expect(stableNotes).toContain("**Scripts and automations near a thermostat's heater count only when they could react.**");
-    expect(stableNotes).toContain("**HA NOVA now sees triggers that name an entity by its registry id.**");
-    expect(stableNotes).toContain("**A copy kept by a delete is easier to find.**");
+    // Fixes: the chat role under the lock (MAR-181, #1298), every rename bound (#1301), unread reference lists (#1301).
+    expect(stableNotes).toContain("**A change in Claude or ChatGPT uses the person's Home Assistant role as it is when the change runs.**");
+    expect(stableNotes).toContain("**A plan that renames several entities checks each one right before its write.**");
+    expect(stableNotes).toContain("**Finding where an entity is used no longer reads a broken answer as \"nowhere\".**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });
@@ -113,6 +122,10 @@ describe("release notes contract", () => {
     // The Mac re-pair and Link sign-out (0.32 spec §5).
     expect(readme).toContain("Coming from 0.31 on macOS? HA NOVA asks you to pair this computer again once: run `ha-nova setup` when HA NOVA says so");
     expect(readme).toContain("You pair with a six-digit code:");
+    // 0.36: a computer an administrator connected works only while they are one (MAR-170), the dead-reference sweep (#978), and the naming-scheme rename (#979).
+    expect(readme).toContain("A computer connected with an administrator's code works only while that person is still an administrator.");
+    expect(readme).toContain('*"Do my automations use anything that no longer exists?"*');
+    expect(readme).toContain('*"Rename all bedroom lights to one naming scheme"*');
     // 0.33: the chat code for a computer nobody sits at, the phone offer, and setup --server on the page.
     expect(readme).toContain("**On a computer nobody sits at**, with no phone, the Home Assistant owner can turn on a chat code for it on the NOVA page.");
     expect(readme).toContain("Your AI assistant sees that code too, and so does any program using this computer's key");
