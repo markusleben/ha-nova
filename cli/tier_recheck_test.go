@@ -10,7 +10,8 @@ import "testing"
 func TestListenersRecheckedBeforeSealing(t *testing.T) {
 	light := []string{"light.turn_on", "light.kitchen"}
 	logbook := []map[string]any{{"event": "call_service", "listener_count": 1}} // an open logbook: the census only notes it
-	later := func(answer any) func(*fakeHA) { // the census's read answers f.events, every later one answer
+	// The census's read answers f.events, every later one answer.
+	later := func(answer any) func(*fakeHA) {
 		return func(f *fakeHA) {
 			f.events = logbook
 			reads := 0
