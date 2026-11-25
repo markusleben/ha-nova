@@ -713,3 +713,39 @@ func TestARawPlanCutBeforeItReadAnythingIsAPlan(t *testing.T) {
 		t.Fatalf("exit %d tier %s reasons %s err %+v", exit, env.Tier, reasonCodes(env), env.Error)
 	}
 }
+
+// A recompute whose YAML helpers read got no answer (the chain of file
+// reads over a slow Relay, rc lane row d) fails it as any read: a preview
+// cut short elsewhere that read them applies on its first confirm, as the
+// replay reads them again.
+func TestACutRecomputeWithoutTheYAMLHelpersApplies(t *testing.T) {
+	f := newFakeHA()
+	ff := newFakeFiles(mar245Files())
+	mar245Home(t, ff)(f)
+	h := newSlowHarness(t, f, 0, 10*time.Second)
+	saved := relaySessionRequestTimeout
+	relaySessionRequestTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { relaySessionRequestTimeout = saved })
+	hang := func(path string, n int) {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		h.hung[path] = n
+	}
+	hang("related:light.kitchen", 2) // the request and its retry: the check is cut short here
+	_, planned := h.run(runCallCommand, "light.turn_on", "light.kitchen")
+	ff.mu.Lock()
+	read := len(ff.reads)
+	ff.mu.Unlock()
+	if codes := reasonCodes(planned); planned.Plan == nil || planned.Plan.Code == "" || read == 0 || !strings.Contains(codes, reasonScanFailed) || strings.Contains(codes, reasonHelperCalls) {
+		t.Fatalf("setup: reasons %s, files read %d, plan %+v", codes, read, planned.Plan)
+	}
+	hang("related:light.kitchen", 2)
+	hang("/config", 1) // the recompute's YAML helpers read gets no answer; the replay's does
+	exit, env := h.run(runApplyCommand, "--plan", planned.Plan.ID, "--confirm", planned.Plan.Code)
+	h.mu.Lock()
+	left := h.hung["/config"]
+	h.mu.Unlock()
+	if exit != 0 || len(h.posts()) != 1 || left != 0 {
+		t.Fatalf("exit %d posts %d hung /config left %d say %q err %+v", exit, len(h.posts()), left, env.Say, env.Error)
+	}
+}
