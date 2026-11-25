@@ -30,9 +30,11 @@ const fixture = (name) => JSON.parse(readFileSync(join(FIXTURE, name), "utf8"));
 
 // loaded: a script or scene the bed just wrote is there only after Home
 // Assistant's own reload. Waits for each entity (script.<id> / its config id),
-// or names the bed's reload as the failure, never HA NOVA's read.
+// or names the bed's reload as the failure, never HA NOVA's read. Up to 60 s:
+// on a loaded host Home Assistant's reload took longer than 15 s (v0.34.0-rc1,
+// v0.35.0-rc1).
 export async function loaded(ha, ...ids) {
-  for (let tries = 0; tries < 30; tries++, await sleep(500)) {
+  for (let tries = 0; tries < 120; tries++, await sleep(500)) {
     const states = await ha("GET", "/api/states");
     if (ids.every((id) => states.some((s) => s.entity_id === id || s.attributes?.id === id.split(".")[1]))) return;
   }

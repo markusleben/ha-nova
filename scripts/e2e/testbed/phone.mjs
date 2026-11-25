@@ -35,7 +35,8 @@ const HA = "http://127.0.0.1:18123";
 const PUSH = "http://127.0.0.1:18792";
 const PHONES = { ios: "Testbed iPhone", android: "Testbed Pixel" };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const RELAY_ASK = JSON.parse(readFileSync(join(ROOT, "cli/confirm_strings.en.json"), "utf8"))["say.relay_ask"];
+const STRINGS = JSON.parse(readFileSync(join(ROOT, "cli/confirm_strings.en.json"), "utf8"));
+const RELAY_ASK = STRINGS["say.relay_ask"];
 export const read = (name) => readFileSync(join(STATE, name), "utf8").trim();
 let failed = 0;
 export const failures = () => failed;
@@ -181,8 +182,10 @@ export async function question(platform, button, { unlock, urgent, answer = 0 })
   else want(auth === "true", `authenticationRequired ${JSON.stringify(auth)}, Android needs the string "true"`);
   if (platform === "android") want(a.every((x) => Object.entries(x).every(([k, v]) => k === "destructive" || typeof v === "string")), "an action value is not a string (FCM data takes strings only)");
   // The hint: last on iOS, first on Android (a collapsed notification shows one line).
+  // The link question teaches the gesture instead (phone.teach.ios, #1289): first on iOS, with no hint.
   const m = b.message ?? "", pull = m.indexOf("Pull down");
-  want(platform === "ios" ? m.endsWith("Press and hold to answer.") : pull >= 0 && pull < m.indexOf("Requested") && !m.includes("Press and hold"), `message ${JSON.stringify(m)}`);
+  const iosTeach = STRINGS["phone.teach.ios"].replace("{button}", button ?? "");
+  want(platform === "ios" ? m.endsWith("Press and hold to answer.") || (m.startsWith(iosTeach) && !m.includes("Press and hold to answer.")) : pull >= 0 && pull < m.indexOf("Requested") && !m.includes("Press and hold"), `message ${JSON.stringify(m)}`);
   want(b.title && [...b.title].length <= 80, `title ${JSON.stringify(b.title)}`);
   want(d.channel === "HA NOVA" && d.importance === "high" && d.priority === "high", `channel/importance/priority ${d.channel}/${d.importance}/${d.priority}`);
   want(d.push?.["interruption-level"] === (urgent ? "time-sensitive" : "active"), `interruption-level ${d.push?.["interruption-level"]}`);
@@ -200,7 +203,12 @@ export async function question(platform, button, { unlock, urgent, answer = 0 })
 const OUTCOME = [["Approved: ", "Nothing more to do; the computer shows the result."], ["Cancelled: ", "Nothing changed."]];
 export async function answered(ask, answer = 0) {
   const [prefix, message] = OUTCOME[answer];
-  const push = await nextPush();
+  let push = await nextPush();
+  // An iPhone question unanswered for 25 s comes back once, quietly (#1289): a tap after that finds the reminder first.
+  if (ask.platform === "ios" && push.data.tag === ask.data.tag && push.data.actions && push.body.title === ask.body.title) {
+    report(`reminder on ${PHONES.ios}: the same question once more, quietly`, push.body.message === ask.body.message && push.data.push?.sound === "none" ? [] : [`message ${JSON.stringify(push.body.message)}, sound ${push.data.push?.sound}`]);
+    push = await nextPush();
+  }
   const { body: b, data: d } = push, p = [];
   const want = (ok, why) => ok || p.push(why);
   want(push.platform === ask.platform, `went to ${push.platform}`);

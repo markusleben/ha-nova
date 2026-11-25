@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.32] - 2026-11-23
+
+### Changed
+- Chat apps get HA NOVA 0.35.0.
+- The safety check of HA NOVA 0.35 reads the automation and script settings it needs in batches of up to 16 per request (`POST /ws` with `batch`; `/health` reports `ws_batch: 1`), so planning a change waits for fewer round trips on a slow connection. A batch may carry only automation and script config reads, this App's safety check rates every item, the reads get 10 seconds together, and this App's own keys can't send one.
+- A phone question this App holds for a computer carries the NOVA page path when the App knows it: a plain tap opens that request on the NOVA page, where approving still needs the page's own button. A request that has ended by then says so instead of showing another one.
+- Other phone questions, chat apps' included: a plain tap still never answers. On Android the notification stays; on an iPhone an unanswered question can come back once, quietly. The notification that links a phone now explains how to answer.
+- The safety check counts scripts and automations near a thermostat's heater only when they could react: a script nearby counts while it runs (or when its state can't be read), and an automation listening to every state change counts unless its filter provably names something else. Triggers that name an entity by its registry id now count. When calls stay unbounded for such a thermostat, set up in YAML or in the UI, the plan names why.
+- In chat apps, the snapshot list now points to where copies kept by deletes are listed.
+
+### Security
+- The WebSocket library is updated to a release that fixes a remote memory-exhaustion issue (ws 8.23.0).
+
+### Upgrade notes
+- Computers on HA NOVA 0.35.0 ask you to update this App. Update this App first, then each computer, then plan again: some plans saved before the update need a fresh preview.
+- HA NOVA 0.35 on an older App reads one at a time, and its phone questions carry no NOVA page link. HA NOVA 0.34 on this App: if the computer would ask but this App wouldn't, the change is refused and nothing is sent.
+
 ## [Relay 0.13.31] - 2026-11-20
 
 ### Changed
