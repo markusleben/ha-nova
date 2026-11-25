@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -143,74 +142,17 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		return e.listeners
 	}
 	status, body, err := e.s.coreGET("/api/states")
-	var states []struct {
-		EntityID   string `json:"entity_id"`
-		State      string `json:"state"`
-		Attributes struct {
-			ID      registryID `json:"id"`
-			Current any        `json:"current"` // an automation's run count; any other entity's attribute may be anything
-		} `json:"attributes"`
-	}
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
-	}
-	if err == nil {
-		err = json.Unmarshal(body, &states)
-	}
-	if err == nil && states == nil {
-		err = errors.New("Home Assistant answered null for /api/states")
-	}
+	rows, err := censusRows(status, body, err)
 	if err != nil {
 		e.readFailed("", "", "automation scan")
 		return nil
 	}
-	type autoRow struct {
-		entityID, configID string
-		running, waitsOnly bool
-		raw                json.RawMessage
-		err                error
-	}
-	var rows []*autoRow
-	for _, st := range states {
-		runs, _ := st.Attributes.Current.(float64)
-		switch domain, _ := splitID(st.EntityID); {
-		case domain == "automation" && (st.State == "on" || runs > 0): // an off automation's triggers hold no listeners, but a run it didn't stop may still wait
-			rows = append(rows, &autoRow{entityID: st.EntityID, configID: string(st.Attributes.ID), running: runs > 0, waitsOnly: st.State != "on"})
-		case domain == "script" && st.State == "on": // a script runs while it is on
-			rows = append(rows, &autoRow{entityID: st.EntityID, running: true, waitsOnly: true})
-		}
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
 	if len(rows) > tierMaxAutomations {
 		e.gap(reasonLimitCut, "", "", fmt.Sprintf("more than %d automations", tierMaxAutomations))
 		return nil
 	}
-	var wg sync.WaitGroup
 	e.s.censusReads(true)
-	requests := make([]map[string]any, len(rows))
-	for i, row := range rows {
-		domain, _ := splitID(row.entityID)
-		requests[i] = loadedConfigRequest(row.entityID, domain)
-	}
-	e.s.readBatched(requests) // over Link: a few round trips, not one per eight configs
-	for _, row := range rows {
-		wg.Add(1)
-		go func(row *autoRow) {
-			defer wg.Done()
-			domain, _ := splitID(row.entityID)
-			loaded, ok, err := loadedConfig(e.s, row.entityID, domain) // what runs, so what holds the listeners
-			switch {
-			case err != nil: // a failed read: typed below, never "no config"
-				row.err = err
-			case !ok:
-				row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
-			default:
-				row.raw = loaded
-				e.warmBlueprint(domain, row.raw) // parseConfig below reads it from the memo
-			}
-		}(row)
-	}
-	wg.Wait()
+	e.readCensus(rows, 0)
 	e.s.censusReads(false)
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}, waits: map[string]bool{}}
 	for _, row := range rows {
@@ -279,6 +221,83 @@ func (e *tierEngine) listenerTable() *listenerTable {
 	}
 	e.listeners = table
 	return table
+}
+
+// censusRow is one automation or script the census reads.
+type censusRow struct {
+	entityID, configID string
+	running, waitsOnly bool
+	raw                json.RawMessage
+	err                error
+}
+
+// censusRows picks from GET /api/states what the census reads: every
+// automation that is on or still running, and every running script.
+func censusRows(status int, body json.RawMessage, err error) ([]*censusRow, error) {
+	var states []struct {
+		EntityID   string `json:"entity_id"`
+		State      string `json:"state"`
+		Attributes struct {
+			ID      registryID `json:"id"`
+			Current any        `json:"current"` // an automation's run count; any other entity's attribute may be anything
+		} `json:"attributes"`
+	}
+	if err := stateListError(status, body, err); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(body, &states); err != nil {
+		return nil, err
+	}
+	var rows []*censusRow
+	for _, st := range states {
+		runs, _ := st.Attributes.Current.(float64)
+		switch domain, _ := splitID(st.EntityID); {
+		case domain == "automation" && (st.State == "on" || runs > 0): // an off automation's triggers hold no listeners, but a run it didn't stop may still wait
+			rows = append(rows, &censusRow{entityID: st.EntityID, configID: string(st.Attributes.ID), running: runs > 0, waitsOnly: st.State != "on"})
+		case domain == "script" && st.State == "on": // a script runs while it is on
+			rows = append(rows, &censusRow{entityID: st.EntityID, running: true, waitsOnly: true})
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].entityID < rows[j].entityID })
+	return rows, nil
+}
+
+// readCensus reads each row's loaded config (in batches where the Relay
+// takes them) and its blueprint substitution, concurrently within the
+// session's request slots, or within inFlight of them (0: all). Session
+// reads only: warmCensus runs it too.
+func (e *tierEngine) readCensus(rows []*censusRow, inFlight int) {
+	requests := make([]map[string]any, len(rows))
+	for i, row := range rows {
+		domain, _ := splitID(row.entityID)
+		requests[i] = loadedConfigRequest(row.entityID, domain)
+	}
+	e.s.readBatched(requests, inFlight) // over Link: a few round trips, not one per eight configs
+	if inFlight <= 0 {
+		inFlight = len(rows)
+	}
+	workers := make(chan struct{}, max(inFlight, 1))
+	var wg sync.WaitGroup
+	for _, row := range rows {
+		wg.Add(1)
+		go func(row *censusRow) {
+			defer wg.Done()
+			workers <- struct{}{}
+			defer func() { <-workers }()
+			domain, _ := splitID(row.entityID)
+			loaded, ok, err := loadedConfig(e.s, row.entityID, domain) // what runs, so what holds the listeners
+			switch {
+			case err != nil: // a failed read: typed below, never "no config"
+				row.err = err
+			case !ok:
+				row.err = &verbFailure{code: "CONFIG_NOT_FOUND"}
+			default:
+				row.raw = loaded
+				e.warmBlueprint(domain, row.raw) // parseConfig below reads it from the memo
+			}
+		}(row)
+	}
+	wg.Wait()
 }
 
 // collectWaits adds the event types of every event trigger inside a

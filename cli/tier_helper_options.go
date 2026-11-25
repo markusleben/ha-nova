@@ -199,7 +199,7 @@ func (e *tierEngine) helperCalls() {
 	if err == nil {
 		err = e.s.wsDecode(map[string]any{"type": "entity/source"}, &sources, "the entity sources")
 	}
-	if err != nil || sources == nil {
+	if err != nil || len(sources) == 0 { // a home with no entity sources is no answer (MAR-272)
 		e.calls.unknown = true
 		return
 	}
@@ -287,6 +287,7 @@ func (e *tierEngine) plainSwitched(id string) bool {
 // quiet: nothing reacts to id's state, which would call more (loud); the
 // last check that failed stays in e.loudWhy for the plan's reason detail.
 func (e *tierEngine) quiet(id string) bool {
+	e.warmQuiet(id)
 	e.loudWhy = e.loud(id)
 	return e.loudWhy == ""
 }
@@ -321,6 +322,7 @@ func (e *tierEngine) loud(id string) string {
 			return id + ": group " + related["group"][0]
 		}
 		e.prefetchStates(slices.Concat(related["script"], related["automation"]))
+		e.warmConfigs(related["automation"])
 		for _, script := range related["script"] {
 			st, err := e.state(script)
 			switch {

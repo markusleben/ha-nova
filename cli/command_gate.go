@@ -331,10 +331,10 @@ func gateAccessTokens(paths runtimePaths) ([]string, error) {
 		} `json:"attributes"`
 	}
 	if err == nil {
-		err = json.Unmarshal(core.Data.Body, &states)
+		err = stateListError(core.Data.Status, core.Data.Body, nil) // no list, or an empty one, is a failed read, not a home without cameras (MAR-272)
 	}
-	if err == nil && states == nil { // no list is a failed read, not a home without cameras
-		err = errors.New("the states are not a list")
+	if err == nil {
+		err = json.Unmarshal(core.Data.Body, &states)
 	}
 	if err != nil {
 		return nil, err

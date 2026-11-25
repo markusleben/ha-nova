@@ -297,7 +297,7 @@ func TestHelperOptionsStopOnceUnbounded(t *testing.T) {
 // never for an entry outside the allowlist, whoever asks.
 func TestHelperOptionsReadOnlyWhereItDecides(t *testing.T) {
 	h, f, flows := thermoHome(t)
-	f.events = nil // no call_service listener
+	f.events = []map[string]any{{"event": "homeassistant_stop", "listener_count": 1}} // no call_service listener
 	h.run(runPlanCommand, "call", "light.turn_off", "light.kitchen")
 	if len(flows.starts) != 0 {
 		t.Errorf("no service-call listener: flows started %v", flows.starts)

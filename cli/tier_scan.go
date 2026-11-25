@@ -273,29 +273,40 @@ func (e *tierEngine) liveEvents() map[string]int {
 	if e.events != nil {
 		return e.events
 	}
-	e.events = map[string]int{}
-	status, body, err := e.s.coreGET("/api/events")
-	var rows []struct {
+	events, err := eventListeners(e.s.coreGET("/api/events"))
+	if err != nil {
+		e.readFailed("", "", "event listeners")
+		events = map[string]int{}
+	}
+	e.events = events
+	return e.events
+}
+
+// eventListeners: the listener count per event type of a GET /api/events
+// answer.
+func eventListeners(status int, body json.RawMessage, err error) (map[string]int, error) {
+	type row struct {
 		Event         string `json:"event"`
 		ListenerCount int    `json:"listener_count"`
 	}
+	var rows []row
 	if err == nil && status != http.StatusOK {
 		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/events", status)
 	}
 	if err == nil {
 		err = json.Unmarshal(body, &rows)
 	}
-	if err == nil && rows == nil {
-		err = fmt.Errorf("Home Assistant answered null for /api/events")
+	if err == nil && (len(rows) == 0 || slices.ContainsFunc(rows, func(r row) bool { return r.Event == "" || r.ListenerCount < 1 })) {
+		err = fmt.Errorf("Home Assistant answered /api/events without any listener") // it lists only events with listeners: an empty list or row is no answer (MAR-272)
 	}
 	if err != nil {
-		e.readFailed("", "", "event listeners")
-		return e.events
+		return nil, err
 	}
-	for _, row := range rows {
-		e.events[row.Event] = row.ListenerCount
+	events := map[string]int{}
+	for _, r := range rows {
+		events[r.Event] = r.ListenerCount
 	}
-	return e.events
+	return events, nil
 }
 
 // checkManagers detects local consumer managers per run (Q2: present →
