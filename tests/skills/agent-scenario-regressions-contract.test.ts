@@ -18,7 +18,7 @@ describe("agent scenario regressions (2026-10-15)", () => {
     expect(bulk).toContain("## Static Pass (automation/script audits)");
     // Seeded classes the first-5 sample missed: a missing entity, an
     // impossible state, a trigger entity that never transitions.
-    expect(bulk).toContain("`NOT_FOUND` is a missing entity");
+    expect(bulk).toContain("`missing` is a missing entity, device, area, or action");
     expect(bulk).toContain("`sun.sun`: `above_horizon`, `below_horizon`");
     expect(bulk).toContain("it fires only on a new transition");
     expect(bulk).toContain("never try another WS type");

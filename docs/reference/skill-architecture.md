@@ -23,7 +23,7 @@ skills/
   ha-nova/output-rules.md       (reference doc — shared user-facing output rules, core)
   ha-nova/output-cards.md       (reference doc — on-demand cards, report/list shapes, findings)
   ha-nova/config-body-filter.jq (shared jq asset — canonical REST config-body extractor)
-  ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules)
+  ha-nova/bulk-patterns.md      (reference doc — bulk selectors, workset, aggregate audit rules, dead-reference sweep via `ha-nova get --dead-references`)
   ha-nova/template-guidelines.md (reference doc — when to use templates vs native primitives)
   ha-nova/safe-refactoring.md   (reference doc — rename, delete, orphan cleanup workflows)
   ha-nova/automation-patterns.md (reference doc — native HA constructs vs templates)
