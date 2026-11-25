@@ -56,10 +56,10 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // 0.36: faster plans (MAR-280, #1299), the dead-reference sweep (#978, #1300; computer only, and chat audits no longer check references), and the naming-scheme rename (#979, #1301).
+    // 0.36: faster plans (MAR-280, #1299), the dead-reference sweep (#978, #1300; computer only: chat apps keep the per-id check), and the naming-scheme rename (#979, #1301).
     expect(stableNotes).toContain("**On a slow connection, planning a light call takes less than half the time.**");
     expect(stableNotes).toContain("**One check finds what your automations use that no longer exists.**");
-    expect(stableNotes).toContain("**In Claude and ChatGPT, checking automations no longer looks for missing entities.**");
+    expect(stableNotes).toContain("On a computer, it reads your automations and scripts and lists");
     expect(stableNotes).toContain("**Rename up to 19 entities to one naming scheme with one confirmation.**");
     expect(stableNotes).toContain("**Renaming an entity id stops what uses the old id until it is updated.**");
     // Role loss (MAR-170, #1298): computers connected before 0.36 keep access until reconnected, and an App rollback disconnects the new ones.
