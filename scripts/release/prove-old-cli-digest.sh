@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the published v0.31.0 Linux binary's update check against the body
-# GoReleaser publishes for v0.35.0 (.goreleaser.yml's stable release header
+# GoReleaser publishes for v0.36.0 (.goreleaser.yml's stable release header
 # and footer), served as api.github.com's latest release, and requires the
 # Mac re-pair warning as its headline and first action item (0.32 spec §5.1):
 # the 0.31 CLI already installed can't learn a new pre-update check, so its
@@ -45,10 +45,10 @@ def block(key):
 header = block("header")
 if not header.startswith("{{ if .Prerelease }}") or header.count("{{ else }}") != 1 or not header.rstrip().endswith("{{ end }}"):
     sys.exit("release.header isn't {{ if .Prerelease }}…{{ else }}…{{ end }}")
-stable = header.split("{{ else }}", 1)[1].rstrip()[: -len("{{ end }}")].replace("{{ .Tag }}", "v0.35.0")
+stable = header.split("{{ else }}", 1)[1].rstrip()[: -len("{{ end }}")].replace("{{ .Tag }}", "v0.36.0")
 if "{{" in stable or "## New Features" not in stable:
     sys.exit("the stable release header has a template this proof can't render, or no New Features section")
-print(json.dumps({"tag_name": "v0.35.0", "html_url": "https://github.com/markusleben/ha-nova/releases/tag/v0.35.0",
+print(json.dumps({"tag_name": "v0.36.0", "html_url": "https://github.com/markusleben/ha-nova/releases/tag/v0.36.0",
                   "body": stable + "\n" + block("footer"), "published_at": "2026-11-23T00:00:00Z", "assets": []}))
 PY
 sudo python3 - "$tmp" <<'PY' &
