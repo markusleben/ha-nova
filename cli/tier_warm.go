@@ -42,9 +42,11 @@ func (e *tierEngine) warmCallReads(req planCallRequest) {
 
 // warmCensus starts what the listener census and the helper check will read
 // when a call sets off call_service listeners: every state, every automation
-// config (listenerTable), and the entity sources (helperCalls). The census
-// reads every state anyway, so from here that one read serves each state
-// the walk reads too, in a replay as in its preview. Only once the call's
+// config (listenerTable), and the entity sources and registry, with the
+// YAML helpers where a thermostat or hygrostat runs from YAML (helperCalls,
+// yamlHelpersRun). The census reads every state anyway, so from here that
+// one read serves each state the walk reads too, in a replay as in its
+// preview. Only once the call's
 // own target is known not to be typed: such a call skips the census
 // (censusMoot).
 func (e *tierEngine) warmCensus() {
@@ -58,8 +60,8 @@ func (e *tierEngine) warmCensus() {
 		return
 	}
 	e.warm(func() {
-		if _, helpers, _ := helperComponents(e.s.coreGET("/api/config")); helpers {
-			_, _ = e.s.ws(map[string]any{"type": "entity/source"})
+		if _, helpers, _ := helperComponents(e.s.coreGET("/api/config")); helpers && e.s.yamlHelpersRun() {
+			_, _ = e.s.read(yamlHelpersEndpoint, map[string]any{})
 		}
 	})
 	if !e.s.gateExempt() { // readBatched never batches for the App's own callers
