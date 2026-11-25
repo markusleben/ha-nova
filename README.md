@@ -61,6 +61,7 @@ Say what you want. HA NOVA works out the rest.
 | You say | What happens |
 |:--------|:-------------|
 | *"Check my automations for problems"* | Checks them against 40+ rules. Finds conflicts, triggers that never fire, and mistakes that are easy to miss |
+| *"Do my automations use anything that no longer exists?"* | Reads every automation and script once and changes nothing. Lists each entity, device, area, or action they use that is gone, disabled, or unavailable, and where. This runs where your AI uses HA NOVA on your computer, not yet in Claude and ChatGPT |
 | *"Why didn't my motion light trigger last night?"* | Replays what really happened and tells you where it stopped and why |
 | *"Turn on the porch light at sunset and off at 11 PM"* | Builds the automation, shows it to you, and checks it before anything is saved |
 | *"Can I update Home Assistant now?"* | Checks free space, a recent backup, running updates, and open repairs, suggests an order, and matches Home Assistant's breaking changes to the integrations you use. After the update, it says what changed and what newly fails |
@@ -69,6 +70,7 @@ Say what you want. HA NOVA works out the rest.
 | *"What happened to my living room temperature overnight?"* | Reads the history and sums it up in plain words |
 | *"Build a dashboard for the living room"* | Builds whole dashboards and views, also with custom cards you installed. It lists every view and card that changes and saves a copy first. "Undo that" brings the old one back |
 | *"Move all kitchen devices to the Kitchen area"* | Moves the devices and entities and shows what will change first. Moving a device with a lock, alarm panel, garage door, or gate takes your own confirmation |
+| *"Rename all bedroom lights to one naming scheme"* | Takes the scheme from names that already agree, shows each new name as Home Assistant will show it and every automation, script, and dashboard that uses one, then renames them all with one confirmation. Updating those uses comes next, with its own preview, and undo puts both back |
 | *"Turn off the integration I don't use anymore and fix the open repairs"* | Turns integrations on or off, renames or removes them, fixes or ignores repairs, and changes users, general settings, and the backup schedule. Shows what changes first. Deletes and sensitive changes take your own confirmation. Turning off a lock's device or integration, or removing the integration or switch it runs on, is refused. A step that asks for a password, PIN, or key finishes in Home Assistant |
 | *"Why does my MQTT broker App keep restarting?"* | On HA OS, checks the App's state, version, and settings, and asks you for the lines that matter from its log page in Home Assistant: HA NOVA doesn't read logs, which can hold passwords. It can also install or remove an App, or change its settings, after your own confirmation. This needs HA NOVA's local connection, not Home Assistant Link |
 | *"Turn off the kitchen light"* | Turns it off right away and checks that it really is off. A room's lights work the same way, up to 30. Everything else in a room, scenes, and riskier actions show a preview first |
@@ -149,7 +151,7 @@ The installer selects the latest stable release. Run the command for your system
 
 **Only use Claude or ChatGPT in the browser?** With no AI app on this computer, choose "I use Claude or ChatGPT in the browser" on the setup page. This needs Home Assistant 2026.10 or newer on HA OS or Supervised, and Home Assistant Link with remote access on, or your own HTTPS address (see [Use HA NOVA in Claude and ChatGPT](#use-ha-nova-in-claude-and-chatgpt)). Right after the owner signs in, setup checks the version, HA OS, and that an internet address is set, before it changes anything. If something is missing, the page says what and offers "Set it up, then check again" or "Use HA NOVA on this computer instead" (on Container or Core, only the second). If all is ready, this computer connects, and chat apps come first.
 
-**Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, any Home Assistant administrator makes a six-digit code in NOVA in Home Assistant ("Connect a device"), and you type it in the terminal. Can't sign in on this computer at all? Choose "Use a six-digit code instead". It can be made on any device. On the browser-only path there is no code: the owner signs in here.
+**Not the owner?** The page asks the owner to sign in. If the owner can't come to this computer, any Home Assistant administrator makes a six-digit code in NOVA in Home Assistant ("Connect a device"), and you type it in the terminal. A computer connected with an administrator's code works only while that person is still an administrator. Can't sign in on this computer at all? Choose "Use a six-digit code instead". It can be made on any device. On the browser-only path there is no code: the owner signs in here.
 
 **In the terminal.** Over SSH or with `ha-nova setup --no-browser`, setup asks in the terminal instead.
 
@@ -302,10 +304,10 @@ Every safety promise above is backed by a file and a test. The **[safety page](d
 |:------|:-------------|
 | ✏️ **write** | Build and change automations and scripts, with a full preview and safety checks; import and use blueprints |
 | 📖 **read** | Show your automation and script configs as they really are |
-| 🔍 **review** | Check your setup for mistakes, conflicts, and weak spots |
+| 🔍 **review** | Check your setup for mistakes, conflicts, and weak spots; find what your automations and scripts use that no longer exists |
 | 🧱 **dashboard** | Build and change dashboards, views, and cards (installed custom cards too), find broken cards, and manage Lovelace resources, with a copy before each save |
 | 🎬 **scene** | Create and manage scenes, including "save this room as a scene" |
-| 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows; delete a device |
+| 🗂️ **organize** | Manage areas, floors, labels, and entity details like icons, units, and how a value shows; rename many entities to one naming scheme; delete a device |
 | 🕒 **history** | Look up history, logbook timelines, and long-term stats |
 | 🏠 **health** | Sum up Home Assistant status, repairs, integrations, system health, unavailable entities, and low batteries; a check-up of free space, memory, CPU, and backups; fix or ignore repairs |
 | 📅 **calendar** | Read calendars and events in a time window; create, change, and delete events |

@@ -18,14 +18,14 @@ import (
 // only check-update and the agent's pre-update advice carry the warning.
 func TestMacRepairWarningLeadsTheOldCLIUpdateNotice(t *testing.T) {
 	const warning = "Updating a Mac from 0.31? HA NOVA asks you to pair it again once."
-	highlights := deriveReleaseHighlights(publishedStableReleaseBody(t, "v0.35.0"))
+	highlights := deriveReleaseHighlights(publishedStableReleaseBody(t, "v0.36.0"))
 	if got := releaseHeadline(highlights); got != warning {
 		t.Fatalf("headline %q, want %q", got, warning)
 	}
 	if len(highlights) == 0 || highlights[0].Kind != releaseHighlightKindAction || !strings.HasPrefix(highlights[0].Text, warning) {
 		t.Fatalf("first action item %+v, want it to start with %q", highlights, warning)
 	}
-	if text := updateReadyText("0.31.0", "0.35.0", "", highlights, ""); !strings.Contains(text, "New: "+warning) {
+	if text := updateReadyText("0.31.0", "0.36.0", "", highlights, ""); !strings.Contains(text, "New: "+warning) {
 		t.Fatalf("notice %q lacks the warning", text)
 	}
 }

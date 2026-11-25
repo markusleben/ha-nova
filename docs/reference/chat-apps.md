@@ -70,7 +70,7 @@ At first only you, the owner. To let others in your home use HA NOVA in their ow
 - **Use the home:** controls devices (lights, switches, fans, climate, covers, valves, locks, the alarm, sirens, media players, vacuums, humidifiers, water heaters, and toggle, number, dropdown, and button helpers) and runs existing scenes, scripts, and automations. Unlocking a door, opening a garage door or gate, and turning off the alarm need a tap on their own linked phone; without one they're refused, never asked as a code in the chat. Can't change automations, scripts, dashboards, or a device's settings (like a child lock or a restart button).
 - **Manage everything:** what you can do. Only for Home Assistant administrators.
 
-A level never gives more than the person's Home Assistant role: a user gets at most Use the home, and a read-only user Ask only. Lower someone's role in Home Assistant, and their level drops with it at once. After raising a role, pick the higher level here and save.
+A level never gives more than the person's Home Assistant role: a user gets at most Use the home, and a read-only user Ask only. Lower someone's role in Home Assistant, and their level drops with it: at once for changes, within a minute for reads. After raising a role, pick the higher level here and save.
 
 **Their phone:** choose "Link phone…" in their row and pick one of their phones. It must belong to them in Home Assistant (Settings → People), with its Home Assistant app signed in with their own login, and they tap "Allow" on it. Their risky changes then ask that phone, never yours. At Ask only, a linked phone stays linked but unused; to remove it, untick them and save.
 

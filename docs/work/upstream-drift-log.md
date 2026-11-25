@@ -177,3 +177,48 @@ standing recheck stay here.
 - Next screen: before the next release cycle, or on HA `2026.11.3` or
   the `2026.12.0` beta, whichever comes first. Watch Supervisor 2026.12
   for the smaller App capability set and multicast rollout.
+
+## 2026-11-25 — pre-release screen (v0.36.0 cycle): HA 2026.11.3 + developer blog after 2026-11-19 + HACS + Supervisor
+
+- Window screened: Core releases after `2026.11.2` (one: `2026.11.3` of
+  2026-11-23; no `2026.12.0` beta yet, the beta channel lists Core
+  `2026.11.3`); contributors.home-assistant.io/blog after 2026-11-19
+  (none); HACS releases after `2.0.5` (none); Supervisor releases after
+  `2026.11.0` (none).
+- `2026.11.3` touches three areas outside device integrations, none of
+  them a pinned shape:
+  - `core_config.py` (#193306): `config/core/update` now checks the time
+    zone before it changes anything, so an invalid time zone changes
+    nothing. The message, its fields, and the tier HA NOVA gives it are
+    unchanged.
+  - `auth/indieauth.py` (#193440): larger response headers when Home
+    Assistant fetches an OAuth `client_id` page. The Link OAuth flow sends
+    the same requests.
+  - Marketplace (#193438, #193439): install fallback and card file mode
+    only; `marketplace_remove` and the Marketplace reads keep their shapes.
+- Clean pass: nothing new changes a WS command, REST route, or service
+  pinned in `skills/**/*.md` or `cli/*.go`.
+- The 0.36 train adds no upstream WS command or REST route. It relies on
+  these existing shapes, all unchanged in Core `2026.11.3`:
+  - `config/auth/list` rows carry `id`, `is_owner`, `is_active`,
+    `system_generated`, and `group_ids` (MAR-170, MAR-181: the role read
+    per request and under the chat lock);
+  - `config/entity_registry/update` with `name`, `aliases`, and
+    `new_entity_id` (#979 Rename Scheme);
+  - the entity, device, and area registry lists,
+    `config/device_registry/list_composite_splits`, `/api/states`,
+    `/api/services`, `/api/events`, and `automation/config` /
+    `script/config` (#978 dead-reference sweep, MAR-272, MAR-280).
+- The test bed pin moves to Core `2026.11.3` with #1297 (merged into
+  `main` as c21a521e; the train takes it at its landing).
+- Source checked: [Core releases (API listing)](https://api.github.com/repos/home-assistant/core/releases?per_page=5),
+  the [2026.11.2...2026.11.3 compare](https://github.com/home-assistant/core/compare/2026.11.2...2026.11.3),
+  [contributors blog](https://contributors.home-assistant.io/blog/),
+  [HACS releases](https://github.com/hacs/integration/releases),
+  [Supervisor releases](https://github.com/home-assistant/supervisor/releases) and
+  the [beta channel](https://version.home-assistant.io/beta.json);
+  Core `2026.11.3` [config/auth.py](https://github.com/home-assistant/core/blob/2026.11.3/homeassistant/components/config/auth.py)
+  and [config/entity_registry.py](https://github.com/home-assistant/core/blob/2026.11.3/homeassistant/components/config/entity_registry.py).
+- Next screen: on the `2026.12.0` beta (due this week) or before the next
+  release cycle, whichever comes first. Watch Supervisor 2026.12 for the
+  smaller App capability set and the multicast plugin's removal.
