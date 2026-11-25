@@ -74,15 +74,17 @@ func (s *relaySession) readBatched(requests []map[string]any, inFlight int) {
 		items, memos = append(items, body), append(memos, m)
 	}
 	s.mu.Unlock()
-	if inFlight <= 0 { // every batch at once
-		inFlight = len(items)/wsBatchMax + 1
+	var slots chan struct{} // nil: every batch at once
+	if inFlight > 0 {
+		slots = make(chan struct{}, inFlight)
 	}
-	slots := make(chan struct{}, inFlight)
 	for start := 0; start < len(items); start += wsBatchMax {
 		end := min(start+wsBatchMax, len(items))
 		go func() {
-			slots <- struct{}{}
-			defer func() { <-slots }()
+			if slots != nil {
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
 			s.sendBatch(items[start:end], memos[start:end])
 		}()
 	}

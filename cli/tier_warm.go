@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -97,6 +98,35 @@ func (e *tierEngine) warmConfigs(automations []string) {
 		reads = append(reads, func() { e.warmConfig(automation) })
 	}
 	prefetch(reads)
+}
+
+// recheckListeners reads the listener counts once more, past the memo, just
+// before the plan is sealed: the census read its states and configs earlier
+// in the check, so a listener added since (a script that started and now
+// waits on call_service) must not leave the tier lower. A changed count, or
+// no answer, is a gap.
+func (e *tierEngine) recheckListeners() {
+	if e.listeners == nil { // no census: nothing it counted can be stale
+		return
+	}
+	data, err := e.s.readFresh("core", map[string]any{"method": http.MethodGet, "path": "/api/events"}, relaySessionRequestTimeout)
+	var core struct {
+		Status int             `json:"status"`
+		Body   json.RawMessage `json:"body"`
+	}
+	if err == nil {
+		err = json.Unmarshal(data, &core)
+	}
+	now, err := eventListeners(core.Status, core.Body, err)
+	if err != nil {
+		e.readFailed("", viaListenerScan, "event listeners before sealing")
+		return
+	}
+	for _, t := range []string{"call_service", "automation_triggered", "script_started", "state_changed"} {
+		if now[t] != e.events[t] {
+			e.gap(reasonListener, "", viaListenerScan, fmt.Sprintf("%s: %d listeners at the census, %d before sealing", t, e.events[t], now[t]))
+		}
+	}
 }
 
 // warm runs read in the background; evaluate waits for every one.
