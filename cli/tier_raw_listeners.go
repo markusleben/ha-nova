@@ -278,10 +278,7 @@ func (e *tierEngine) statesWhere(picks func(id string, attributes map[string]any
 		EntityID   string         `json:"entity_id"`
 		Attributes map[string]any `json:"attributes"`
 	}
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
-	}
-	if err == nil {
+	if err = stateListError(status, body, err); err == nil { // an empty list leaves no tracker unread (MAR-272)
 		err = json.Unmarshal(body, &states)
 	}
 	if err != nil {

@@ -61,7 +61,8 @@ type fakeHA struct {
 }
 
 func newFakeHA() *fakeHA {
-	f := &fakeHA{states: map[string]map[string]any{}, configs: map[string]any{}, unique: map[string]string{}, related: map[string][]string{}, fail: map[string]bool{}, hang: map[string]bool{}}
+	f := &fakeHA{states: map[string]map[string]any{}, configs: map[string]any{}, unique: map[string]string{}, related: map[string][]string{}, fail: map[string]bool{}, hang: map[string]bool{},
+		events: []map[string]any{{"event": "homeassistant_stop", "listener_count": 1}}} // Home Assistant always has listeners (MAR-272)
 	f.ent("light.kitchen", "hue", "on", map[string]any{"brightness": 255.0, "friendly_name": "Kitchen"})
 	f.ent("light.hall", "hue", "off", nil)
 	f.ent("lock.front", "zwave_js", "locked", nil)

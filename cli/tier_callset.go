@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
 	"slices"
 	"strings"
 )
@@ -147,19 +145,13 @@ func (e *tierEngine) builtIn(platform string) bool {
 // (/api/config components: "flux" or "flux.switch"), or the list is unread;
 // a loaded thermostat or hygrostat helper adds what it calls.
 func (e *tierEngine) reactorCalls() {
-	var config struct {
-		Components []string `json:"components"`
-	}
-	status, body, err := e.s.coreGET("/api/config")
-	if err != nil || status != http.StatusOK || json.Unmarshal(body, &config) != nil {
+	names, helpers, ok := helperComponents(e.s.coreGET("/api/config"))
+	if !ok {
 		e.calls.unknown = true
 		return
 	}
-	helpers := false
-	for _, component := range config.Components {
-		name, _, _ := strings.Cut(component, ".")
+	for _, name := range names {
 		e.calls.unknown = e.calls.unknown || reactors[name]
-		helpers = helpers || helperOptionFields[name] != ""
 	}
 	if helpers {
 		e.helperCalls()

@@ -55,7 +55,8 @@ func (s *relaySession) wsBatch() bool {
 // batches, and keeps each answer where s.read finds it, so each caller reads
 // as before. Not for the App's own callers, whose reads the Relay doesn't
 // redact, nor while a cut preview is replayed, nor on a Relay without batches.
-func (s *relaySession) readBatched(requests []map[string]any) {
+// inFlight caps the batches sent at once (0: no cap).
+func (s *relaySession) readBatched(requests []map[string]any, inFlight int) {
 	if len(requests) < 2 || s.gateExempt() || s.replaying() || !s.wsBatch() {
 		return
 	}
@@ -73,9 +74,19 @@ func (s *relaySession) readBatched(requests []map[string]any) {
 		items, memos = append(items, body), append(memos, m)
 	}
 	s.mu.Unlock()
+	var slots chan struct{} // nil: every batch at once
+	if inFlight > 0 {
+		slots = make(chan struct{}, inFlight)
+	}
 	for start := 0; start < len(items); start += wsBatchMax {
 		end := min(start+wsBatchMax, len(items))
-		go s.sendBatch(items[start:end], memos[start:end])
+		go func() {
+			if slots != nil {
+				slots <- struct{}{}
+				defer func() { <-slots }()
+			}
+			s.sendBatch(items[start:end], memos[start:end])
+		}()
 	}
 }
 

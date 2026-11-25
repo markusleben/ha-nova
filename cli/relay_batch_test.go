@@ -104,11 +104,11 @@ func TestReadBatchedSkipsWhatItMayNotBatch(t *testing.T) {
 	defer s.close()
 	requests := []map[string]any{loadedConfigRequest("automation.a", "automation"), loadedConfigRequest("script.b", "script")}
 	s.replay = map[string]bool{}
-	s.readBatched(requests)
+	s.readBatched(requests, 0)
 	s.replay = nil
-	s.readBatched(requests[:1])
+	s.readBatched(requests[:1], 0)
 	s.cfg.bridgeCredential = "hanova-dev-v1.x"
-	s.readBatched(requests)
+	s.readBatched(requests, 0)
 	if n := log.batches.Load(); n != 0 {
 		t.Fatalf("batches = %d: want none while replaying, for one read, or for the App's own callers", n)
 	}

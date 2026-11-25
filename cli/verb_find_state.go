@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 )
@@ -21,10 +19,7 @@ type stateRow struct {
 func loadStates(s *relaySession) ([]stateRow, error) {
 	status, body, err := s.coreGET("/api/states")
 	var states []stateRow
-	if err == nil && status != http.StatusOK {
-		err = fmt.Errorf("Home Assistant answered HTTP %d for /api/states", status)
-	}
-	if err == nil {
+	if err = stateListError(status, body, err); err == nil { // an empty list proves no absence (MAR-272)
 		err = json.Unmarshal(body, &states)
 	}
 	return states, err

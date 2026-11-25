@@ -74,7 +74,7 @@ func runGetDeadReferences(s *relaySession, env *verbEnvelope) error {
 			loaded = append(loaded, loadedConfigRequest(h.entityID, h.domain))
 		}
 	}
-	s.readBatched(loaded)
+	s.readBatched(loaded, 0)
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	reads := make(chan struct{}, 8) // stored configs and blueprints are read one request each

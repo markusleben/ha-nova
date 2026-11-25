@@ -190,6 +190,7 @@ func planCall(paths runtimePaths, s *relaySession, env *verbEnvelope, req planCa
 // call, call, and apply's recompute (I3) all run exactly this.
 func computeCallPlan(s *relaySession, env *verbEnvelope, req planCallRequest) (*tierEngine, storedPlan, error) {
 	e := newTierEngine(s)
+	e.warmCallReads(req)
 	e.loadRegistry()
 	// A Relay that never answered is an outage, not a scan gap: nothing is
 	// planned or stored (exit 1). Failures after a first answer stay typed.
@@ -473,6 +474,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		}
 	}
 	e.censusMoot = e.callTargetTyped(req, targets)
+	e.warmCensus()
 	reads = append(reads, // checkManagers reads them after the walk: how far a cut walk got must not decide them
 		func() { _, _ = e.s.ws(map[string]any{"type": "config_entries/get"}) },
 		func() { _, _ = e.s.ws(map[string]any{"type": "config/entity_registry/list"}) })
@@ -498,5 +500,7 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 	e.checkManagers()
 	e.callServiceListeners() // last: every call above, and each listener's own, may set one off; a manager's calls aren't read
 	e.settleBounds()
+	e.warming.Wait()
+	e.recheckListeners()
 	return e.ownApp // a step anywhere above would stop HA NOVA's own App (latchOwnApp)
 }
