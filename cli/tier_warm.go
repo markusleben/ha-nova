@@ -103,8 +103,8 @@ func (e *tierEngine) warmConfigs(automations []string) {
 // recheckListeners reads the listener counts once more, past the memo, just
 // before the plan is sealed: the census read its states and configs earlier
 // in the check, so a listener added since (a script that started and now
-// waits on call_service) must not leave the tier lower. A changed count, or
-// no answer, is a gap.
+// waits on call_service) must not leave the tier lower. A higher count, or
+// no answer, is a gap; a listener gone adds no reaction the census missed.
 func (e *tierEngine) recheckListeners() {
 	if e.listeners == nil { // no census: nothing it counted can be stale
 		return
@@ -123,7 +123,7 @@ func (e *tierEngine) recheckListeners() {
 		return
 	}
 	for _, t := range []string{"call_service", "automation_triggered", "script_started", "state_changed"} {
-		if now[t] != e.events[t] {
+		if now[t] > e.events[t] {
 			e.gap(reasonListener, "", viaListenerScan, fmt.Sprintf("%s: %d listeners at the census, %d before sealing", t, e.events[t], now[t]))
 		}
 	}

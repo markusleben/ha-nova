@@ -5,7 +5,8 @@ import "testing"
 // The census reads its states and configs early in the check (tier_warm.go),
 // so a listener added after it, such as a script that starts and waits on
 // call_service, must not leave the tier lower. The counts are read again,
-// past the memo, before the plan is sealed: a change, or no answer, is a gap.
+// past the memo, before the plan is sealed: a higher count, or no answer, is
+// a gap.
 func TestListenersRecheckedBeforeSealing(t *testing.T) {
 	light := []string{"light.turn_on", "light.kitchen"}
 	logbook := []map[string]any{{"event": "call_service", "listener_count": 1}} // an open logbook: the census only notes it
@@ -37,8 +38,8 @@ func TestListenersRecheckedBeforeSealing(t *testing.T) {
 			args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
 		{name: "a state_changed listener added after the census", setup: later(coreReply(200, append([]map[string]any{{"event": "state_changed", "listener_count": 1}}, logbook...))),
 			args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
-		{name: "a listener gone after the census", setup: later(coreReply(200, []map[string]any{{"event": "homeassistant_stop", "listener_count": 1}})),
-			args: light, exit: 3, tier: "typed", reasons: []string{reasonListener}},
+		{name: "a listener gone after the census adds no reaction", setup: later(coreReply(200, []map[string]any{{"event": "homeassistant_stop", "listener_count": 1}})),
+			args: light, exit: 0, tier: "ordinary", absent: []string{reasonListener, reasonScanFailed}, check: readTwice},
 		{name: "no answer before sealing", setup: later(fakeRelayFailure{"UPSTREAM_ERROR", "boom"}),
 			args: light, exit: 3, tier: "typed", reasons: []string{reasonScanFailed}},
 		{name: "without a census nothing is read again", setup: func(f *fakeHA) {
