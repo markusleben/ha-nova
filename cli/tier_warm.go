@@ -17,9 +17,11 @@ import (
 // plan is sealed, so its reads are settled.
 
 // warmCallReads sends the first reads every call plan makes, and the states
-// of the first named targets, within the session's request slots.
+// of the first named targets, within the session's request slots. Not for
+// --match, which resolves serially so its plan reads only what its own
+// checks read (#1261).
 func (e *tierEngine) warmCallReads(req planCallRequest) {
-	if e.s == nil || e.s.replaying() {
+	if e.s == nil || e.s.replaying() || req.Match != "" {
 		return
 	}
 	ws := func(wsType string) func() {

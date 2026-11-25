@@ -95,7 +95,10 @@ func TestQuietChecksInTheMaintainersHome(t *testing.T) {
 			args: light, exit: 3, tier: "typed", check: quietCause("script.morning_greeting (area bath)", "heater_actions: switch.bath_plug: running script")},
 		{name: "a running script on the plug's floor", setup: bathHome(t, func(f *fakeHA) { f.states["script.boiler_restart"]["state"] = "on" }),
 			args: light, exit: 3, tier: "typed", check: quietCause("script.boiler_restart (floor upstairs)", "heater_actions: switch.bath_plug: running script")},
-		{name: "a script whose state can't be read", setup: bathHome(t, func(f *fakeHA) { f.fail["/api/states/script.boiler_restart"] = true }),
+		{name: "a script whose state can't be read", setup: bathHome(t, func(f *fakeHA) { // this home's census reads every state from one list (warmCensus): the script has none there
+			f.fail["/api/states/script.boiler_restart"] = true
+			delete(f.states, "script.boiler_restart")
+		}),
 			args: light, exit: 3, tier: "typed", check: quietCause("script.boiler_restart (floor upstairs)", "heater_actions: switch.bath_plug: state unread of")},
 		{name: "an automation tied to the plug at rest", setup: bathHome(t, plugWatch(0)), args: light, exit: 0, tier: "ordinary", check: reachesWatchdog(false)},
 		{name: "an automation tied to the plug while it runs", setup: bathHome(t, plugWatch(1)),
