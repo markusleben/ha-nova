@@ -31,6 +31,7 @@ var mcpParityRoutes = map[string]string{
 	"find --limit": "ha_find limit", "find --include-disabled": "ha_find include_disabled", "find --aliases": "ha_find aliases",
 	"get": "ha_get entity_id", "get --config": "ha_get config", "get --related": "ha_get related", "get --references": "ha_get references",
 	"get --dashboard": "ha_get dashboard", "get --dashboards": "ha_get dashboards",
+	"get --dead-references": "computer only for now: a new ha_get argument changes the tool text, which resets every claude.ai Always allow (TestMCPToolTextStable); bulk-patterns.md says the sweep needs the ha-nova command",
 	"history": "ha_history entity_id", "history --since": "ha_history since", "history --until": "ha_history until", "history --logbook": "ha_history logbook",
 	"map": "ha_map", "map --section": "ha_map section", "map --entity": "ha_map entity", "map --first-look": "ha_map first_look",
 	"map --insights": "ha_map insights", "map --limit": "ha_map limit",
