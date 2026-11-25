@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mar245Home: MAR-209's home (logbook open) with the maintainer's YAML
@@ -208,4 +209,24 @@ func TestYAMLThermostatBoundsTheLight(t *testing.T) {
 			}
 		}), args: light, exit: 3, tier: "typed"},
 	})
+}
+
+// A YAML helpers read with no answer (here each request times out) is a
+// failed read, as any read (#827): SCAN_FAILED of the helper, or the
+// budget's LIMIT_CUT, never yaml_unread, so a cut check names the same gap
+// wherever its reads ran out.
+func TestYAMLHelpersWithNoAnswerAreAFailedRead(t *testing.T) {
+	saved := relaySessionRequestTimeout
+	relaySessionRequestTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { relaySessionRequestTimeout = saved })
+	runTierCases(t, []tierCase{{name: "the files read never answers", setup: func(f *fakeHA) {
+		mar245Home(t, newFakeFiles(mar245Files()))(f)
+		f.hang["/config"] = true
+	}, args: []string{"light.turn_on", "light.kitchen"}, exit: 3, tier: "typed", absent: []string{reasonHelperCalls}, check: func(t *testing.T, env verbTestEnvelope) {
+		if !slices.ContainsFunc(env.Reasons, func(r tierReason) bool {
+			return r.Code == reasonScanFailed && r.EntityID == "climate.bath_thermostat" && r.Detail == "yaml helpers"
+		}) {
+			t.Fatalf("reasons %+v lack the failed YAML helpers read", env.Reasons)
+		}
+	}}})
 }
