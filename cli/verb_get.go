@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const getUsage = "ha-nova get <entity_id> [--config] [--related] [--references]\n       ha-nova get --dashboard <url_path> [--config] | --dashboards"
+const getUsage = "ha-nova get <entity_id> [--config] [--related] [--references]\n       ha-nova get --dashboard <url_path> [--config] | --dashboards | --dead-references"
 
 var entityIDPattern = regexp.MustCompile(`^[a-z0-9_]+\.[a-z0-9_]+$`)
 
@@ -39,7 +39,16 @@ func getVerb(call *verbCall, paths runtimePaths, args []string) int {
 	withReferences := fs.Bool("references", false, "also scan automations, scripts, dashboards, energy, and state attributes for the entity, its device, and the device's other entities (includes --related)")
 	dashboard := fs.String("dashboard", "", "one dashboard (url_path): its views, cards, custom card types, and issues")
 	dashboards := fs.Bool("dashboards", false, "every dashboard: the broken-card sweep (missing entities, unconfirmed custom card types)")
+	deadReferences := fs.Bool("dead-references", false, "every automation and script: references to entities, devices, areas, and actions that are missing, disabled, not loaded, or unavailable")
 	positional, err := parseVerbArgs(fs, &opts, args, getUsage)
+	if err == nil && *deadReferences {
+		if len(positional) != 0 || *withConfig || *withRelated || *withReferences || *dashboard != "" || *dashboards {
+			return verbUsageError(call, "get", errors.New("Usage: "+getUsage))
+		}
+		return runReadVerb(paths, "get", opts, func(s *relaySession, env *verbEnvelope) error {
+			return runGetDeadReferences(s, env)
+		})
+	}
 	if err == nil && (*dashboard != "" || *dashboards) {
 		if len(positional) != 0 || *withRelated || *withReferences || (*dashboards && (*dashboard != "" || *withConfig)) || (*dashboard != "" && !dashboardPathPattern.MatchString(*dashboard)) {
 			return verbUsageError(call, "get", errors.New("Usage: "+getUsage))

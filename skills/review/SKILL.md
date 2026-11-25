@@ -50,6 +50,8 @@ For helpers, resolve the family first:
 - supported config-entry family: domain is one of `utility_meter`, `derivative`, `integration`, `min_max`, `threshold`, `tod`, `statistics`, `group`, `history_stats`, `template`
 - config-entry helper review remains minimal, but target resolution must still normalize to a real `entry_id`
 
+Asked only about broken or missing references: `../ha-nova/bulk-patterns.md` → Dead-Reference Sweep before any shortlist or Static Pass; its report is the answer.
+
 If the target config is not already in the thread context, resolve it yourself:
 1. If the user asks for a bulk audit by `prefix`, `domain`, `area`, or `label`, build a shortlist first using `../ha-nova/bulk-patterns.md`.
    - use `config/entity_registry/list_for_display` for direct `prefix` / `domain` resolution, except a whole automation/script domain (below)
@@ -71,7 +73,6 @@ If the target config is not already in the thread context, resolve it yourself:
    - carry the exact matched, statically checked, and current review-set counts into Bulk Mode Gate
    - beyond the Static Pass, do not resolve unique_ids, read configs, read states, or run collision scans for targets outside the current review set
    - a narrow collision explanation may inspect one extra target outside the matched remainder when needed to classify a cluster; keep that read explicit, read-only, outside the audited-item count, and clearly marked as related/collision evidence in the transcript
-   - prefer explicit command/file naming such as `related-config`; if the marker must live in command transcript output, emit a line like `COLLISION_EVIDENCE=<reason>`
    - once the shortlist or workset is saved, keep that file immutable; use dedicated filenames for later registry, config, and collision outputs
    - if the user intentionally requested a bulk selector, do not ask a clarifying question just because multiple matches remain
 2. Search by name using entity registry (compact fields: `ei`=entity_id, `en`=name/alias):
