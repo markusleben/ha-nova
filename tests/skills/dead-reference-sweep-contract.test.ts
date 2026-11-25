@@ -19,7 +19,7 @@ describe("dead-reference sweep (#978)", () => {
     // Chat apps have no `ha-nova` command: they keep 0.35's per-id check (ha_get), never an unchecked Static Pass.
     expect(bulk).toContain("With only a chat app's tools (the sweep needs the `ha-nova` command), check instead: a literal `domain.object_id` in an entity position");
     expect(bulk).toContain("confirm with `ha-nova get <entity_id>` — `NOT_FOUND` is a missing entity");
-    expect(bulk).toContain("with only a chat app's tools, run the bulk audit's Static Pass over every automation and script (or the asked scope's shortlist) instead, with its chat-app check above, say that devices, areas, and actions were not checked there");
+    expect(bulk).toContain("with only a chat app's tools, build the bulk audit's shortlist instead (the asked scope, else every automation and script) and run its Static Pass with the chat-app check above, never a deep review");
     expect(bulk).not.toContain("a Static Pass there counts references as not checked");
   });
   it("routes a broken-references question to the sweep before any shortlist", () => {
