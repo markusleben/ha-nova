@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -178,5 +179,77 @@ func TestRawRenameStaysPreviewOtherwise(t *testing.T) {
 	}
 	if exit, applied := applyRaw(t, rejected, env); exit == verbExitOK || applied.Undo != nil || len(namesRecords(t, rejected)) != 0 {
 		t.Fatalf("rejected rename kept a way back: exit %d %+v %v", exit, applied, namesRecords(t, rejected))
+	}
+}
+
+// A pass of many renames changes exactly the entries its preview showed:
+// another entry under a renamed id before apply is drift, nothing sent; one
+// that lands on a later step's id while the pass runs stops that step.
+func TestRawRenamesBindTheirEntries(t *testing.T) {
+	var mu sync.Mutex
+	entries := map[string]map[string]any{}
+	reset := func() {
+		mu.Lock()
+		defer mu.Unlock()
+		entries["sensor.desk_power"] = map[string]any{"id": "e-desk", "entity_id": "sensor.desk_power", "name": nil}
+		entries["sensor.hall_power"] = map[string]any{"id": "e-hall", "entity_id": "sensor.hall_power", "name": nil}
+	}
+	reset()
+	var updates []string
+	moveOnto := false
+	paths, _, _ := replaceRelay(t, map[string]func(map[string]any) any{
+		"config/entity_registry/list": func(map[string]any) any {
+			return []any{map[string]any{"entity_id": "sensor.desk_power"}, map[string]any{"entity_id": "sensor.hall_power"}}
+		},
+		"config/entity_registry/get": func(body map[string]any) any {
+			mu.Lock()
+			defer mu.Unlock()
+			id, _ := body["entity_id"].(string)
+			return entries[id]
+		},
+		"config/entity_registry/update": func(body map[string]any) any {
+			mu.Lock()
+			defer mu.Unlock()
+			id, _ := body["entity_id"].(string)
+			updates = append(updates, id)
+			if moveOnto {
+				entries["sensor.hall_power"] = map[string]any{"id": "e-other", "entity_id": "sensor.hall_power", "name": nil}
+			}
+			return map[string]any{}
+		},
+	})
+	both := `[{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"sensor.desk_power","name":"Desk"}},` +
+		`{"endpoint":"ws","payload":{"type":"config/entity_registry/update","entity_id":"sensor.hall_power","name":"Hall"}}]`
+	copyOf := func(hallID string) string {
+		return `[{"endpoint":"backups","payload":{"action":"save","category":"metadata","name":"auto-rename-power","data":[` +
+			`{"id":"e-desk","entity_id":"sensor.desk_power","name":null},{"id":"` + hallID + `","entity_id":"sensor.hall_power","name":null}]}},` + both[1:]
+	}
+	if exit, wrong := planRaw(t, paths, copyOf("e-other")); exit != verbExitRefused || wrong.Error == nil || !strings.Contains(wrong.Error.Message, "differs from sensor.hall_power as it is now (id)") {
+		t.Fatalf("a copy of another entry: exit %d %+v", exit, wrong.Error)
+	}
+	if exit, copied := planRaw(t, paths, copyOf("e-hall")); exit != verbExitConfirmation || copied.Plan == nil {
+		t.Fatalf("the copy as read: exit %d %+v", exit, copied)
+	}
+	exit, env := planRaw(t, paths, both)
+	if exit != verbExitConfirmation || env.Plan == nil {
+		t.Fatalf("plan: exit %d %+v", exit, env)
+	}
+	mu.Lock()
+	entries["sensor.hall_power"] = map[string]any{"id": "e-other", "entity_id": "sensor.hall_power", "name": nil}
+	mu.Unlock()
+	if exit, drift := applyRaw(t, paths, env); exit != verbExitDrift || len(updates) != 0 {
+		t.Fatalf("another entry before apply: exit %d %+v sent %v", exit, drift, updates)
+	}
+
+	reset()
+	exit, env = planRaw(t, paths, both)
+	if exit != verbExitConfirmation || env.Plan == nil {
+		t.Fatalf("plan again: exit %d %+v", exit, env)
+	}
+	moveOnto = true
+	exit, applied := applyRaw(t, paths, env)
+	if outcomes := rawOutcomes(t, applied); exit == verbExitOK || statuses(outcomes) != "done,refused" ||
+		!strings.Contains(outcomes[1].Error, "sensor.hall_power changed in Home Assistant since the preview") || strings.Join(updates, " ") != "sensor.desk_power" {
+		t.Fatalf("another entry while it runs: exit %d %+v sent %v", exit, applied, updates)
 	}
 }
