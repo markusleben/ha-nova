@@ -56,14 +56,15 @@ describe("release notes contract", () => {
     expect(stableNotes).toMatch(/## New Features\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toMatch(/## What To Watch\s+- \*\*Updating a Mac from 0\.31\? HA NOVA asks you to pair it again once\.\*\*/);
     expect(stableNotes).toContain('choose "Allow", not "Always Allow"');
-    // 0.36: faster plans (MAR-280, #1299), the dead-reference sweep (#978, #1300), and the naming-scheme rename (#979, #1301).
-    expect(stableNotes).toContain("**Planning a light call takes less than half the time.**");
+    // 0.36: faster plans (MAR-280, #1299), the dead-reference sweep (#978, #1300; computer only, and chat audits no longer check references), and the naming-scheme rename (#979, #1301).
+    expect(stableNotes).toContain("**On a slow connection, planning a light call takes less than half the time.**");
     expect(stableNotes).toContain("**One check finds what your automations use that no longer exists.**");
-    expect(stableNotes).toContain("Not yet in Claude and ChatGPT.");
-    expect(stableNotes).toContain("**Rename many entities to one naming scheme with one confirmation.**");
+    expect(stableNotes).toContain("**In Claude and ChatGPT, checking automations no longer looks for missing entities.**");
+    expect(stableNotes).toContain("**Rename up to 19 entities to one naming scheme with one confirmation.**");
+    expect(stableNotes).toContain("**Renaming an entity id stops what uses the old id until it is updated.**");
     // Role loss (MAR-170, #1298): computers connected before 0.36 keep access until reconnected, and an App rollback disconnects the new ones.
-    expect(stableNotes).toContain("**A computer an administrator connected works only while that person is still an administrator.**");
-    expect(stableNotes).toContain("One connected before 0.36 keeps access until you revoke it on the NOVA page and connect it again.");
+    expect(stableNotes).toContain("**A computer connected with an administrator's code now works only while that person stays an administrator.**");
+    expect(stableNotes).toContain("For a computer connected before 0.36, revoke it on the NOVA page and connect it again.");
     expect(stableNotes).toContain("**Going back to an older NOVA App disconnects the computers an administrator connected after the update.**");
     // Empty answers and the listener recheck fail closed (MAR-272, #1299).
     expect(stableNotes).toContain("**Now and then an everyday call asks for your OK.**");
@@ -83,10 +84,10 @@ describe("release notes contract", () => {
     expect(stableNotes).toContain("**Update the NOVA App and HA NOVA together.** HA NOVA 0.32 refuses a change it would ask for but the new App wouldn't");
     expect(stableNotes).toContain("**A listener HA NOVA can't name on the logbook's events no longer makes a call ask.**");
     expect(stableNotes).toContain("**A key kept in a file trusts every program running as you.**");
-    // Fixes: the chat role under the lock (MAR-181, #1298), every rename bound (#1301), empty reference lists (#1301).
+    // Fixes: the chat role under the lock (MAR-181, #1298), every rename bound (#1301), unread reference lists (#1301).
     expect(stableNotes).toContain("**A change in Claude or ChatGPT uses the person's Home Assistant role as it is when the change runs.**");
-    expect(stableNotes).toContain("**A plan that renames several entities stops if any of them changed since its preview.**");
-    expect(stableNotes).toContain("**Finding where an entity is used no longer reads an empty answer as \"nowhere\".**");
+    expect(stableNotes).toContain("**A plan that renames several entities checks each one right before its write.**");
+    expect(stableNotes).toContain("**Finding where an entity is used no longer reads a broken answer as \"nowhere\".**");
     // Chat apps are named as such; the MCP adapter itself stays unadvertised.
     expect(stableNotes).not.toMatch(/mcp/i);
   });

@@ -185,8 +185,8 @@ standing recheck stay here.
   `2026.11.3`); contributors.home-assistant.io/blog after 2026-11-19
   (none); HACS releases after `2.0.5` (none); Supervisor releases after
   `2026.11.0` (none).
-- `2026.11.3` touches three files outside integrations, none of them a
-  pinned shape:
+- `2026.11.3` touches three areas outside device integrations, none of
+  them a pinned shape:
   - `core_config.py` (#193306): `config/core/update` now checks the time
     zone before it changes anything, so an invalid time zone changes
     nothing. The message, its fields, and the tier HA NOVA gives it are
@@ -209,7 +209,8 @@ standing recheck stay here.
     `config/device_registry/list_composite_splits`, `/api/states`,
     `/api/services`, `/api/events`, and `automation/config` /
     `script/config` (#978 dead-reference sweep, MAR-272, MAR-280).
-- The test bed moves to Core `2026.11.3` with #1297.
+- The test bed pin moves to Core `2026.11.3` with #1297 (merged into
+  `main` as c21a521e; the train takes it at its landing).
 - Source checked: [Core releases (API listing)](https://api.github.com/repos/home-assistant/core/releases?per_page=5),
   the [2026.11.2...2026.11.3 compare](https://github.com/home-assistant/core/compare/2026.11.2...2026.11.3),
   [contributors blog](https://contributors.home-assistant.io/blog/),

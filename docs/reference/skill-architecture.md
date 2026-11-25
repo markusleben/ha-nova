@@ -110,7 +110,7 @@ Current mapping:
 | integration-setup | inline | response-driven config flows with direct preview/confirm and HA UI handoff for secrets/external steps |
 | dashboard | inline | read → merge → preview → full-save → readback verify, all user-facing |
 | scene | inline | 2-4 calls, flat entities payload, read → merge → preview → full-save → readback verify |
-| organize | inline | field-level registry mutations with direct preview/readback |
+| organize | inline + CLI | field-level registry mutations with direct preview/readback; a Rename Scheme pass is one `plan raw` + `apply` |
 | device | inline + CLI | `get --references` scans; `plan write` + `apply` re-point; every other family hands off to its owner |
 | migrate | inline + CLI | the agent reads the export; `find`/`get` map; `plan write`/`plan call` + `apply` in one group per source rule; helpers and YAML hand off |
 | history | inline | read-only bounded timeline lookups |
@@ -122,7 +122,7 @@ Current mapping:
 | updates | inline | entity-based overview, feature-gated install with entity-poll verification |
 | energy | inline | statistics-based analysis, prefs read → merge → preview → full-save → validate verify |
 | maintenance | inline | grouped issue triage, code-gated destructive repairs with per-item verification |
-| review | inline | analysis is client-side, relay calls are reads only |
+| review | inline + CLI | analysis is client-side, relay calls are reads only; `get --dead-references` sweeps every automation and script |
 | entity-discovery | inline | 1-2 calls, search + return |
 | service-call | inline | direct preview/confirm; any listener scan stays read-only and user-facing |
 | fallback | inline | research + web search + experimental relay calls (write-guarded) |
