@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -18,7 +22,7 @@ type serviceSpec struct{ listed, target, responseOnly, known bool }
 func (e *tierEngine) serviceSpec(service string) serviceSpec {
 	if !e.servicesRead {
 		e.servicesRead = true
-		e.services = readServices(e.s)
+		e.services, e.servicesErr = readServices(e.s)
 	}
 	if e.services == nil {
 		return serviceSpec{}
@@ -28,8 +32,8 @@ func (e *tierEngine) serviceSpec(service string) serviceSpec {
 	return spec
 }
 
-// readServices maps "domain.service" to its spec; nil when unreadable.
-func readServices(s *relaySession) map[string]serviceSpec {
+// readServices maps "domain.service" to its spec; nil and why when unreadable.
+func readServices(s *relaySession) (map[string]serviceSpec, error) {
 	status, body, err := s.coreGET("/api/services")
 	var domains []struct {
 		Domain   string `json:"domain"`
@@ -40,8 +44,13 @@ func readServices(s *relaySession) map[string]serviceSpec {
 			} `json:"response"`
 		} `json:"services"`
 	}
-	if err != nil || status != http.StatusOK || json.Unmarshal(body, &domains) != nil || domains == nil {
-		return nil
+	switch {
+	case err != nil:
+		return nil, err
+	case status != http.StatusOK:
+		return nil, plainCause(fmt.Sprintf("Home Assistant answered HTTP %d", status))
+	case json.Unmarshal(body, &domains) != nil || domains == nil:
+		return nil, plainCause("the answer is not a service list")
 	}
 	out := map[string]serviceSpec{}
 	for _, d := range domains {
@@ -50,7 +59,33 @@ func readServices(s *relaySession) map[string]serviceSpec {
 				responseOnly: spec.Response != nil && !spec.Response.Optional}
 		}
 	}
-	return out
+	return out, nil
+}
+
+// plainCause: a cause this code worded, safe for a refusal's detail.
+type plainCause string
+
+func (c plainCause) Error() string { return string(c) }
+
+// readCause names why a read got no answer, for a refusal's detail: the
+// Relay's code, or the kind of failure; never an error's own text, which
+// can name the Relay's URL.
+func readCause(err error) string {
+	var call *relayCallError
+	var link *url.Error
+	var plain plainCause
+	var unreachable relayUnreachableError
+	switch {
+	case errors.As(err, &call):
+		return fmt.Sprintf("%s (HTTP %d)", call.code, call.status)
+	case errors.As(err, &plain):
+		return string(plain)
+	case errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || errors.As(err, &link) && link.Timeout():
+		return "no answer in time"
+	case errors.As(err, &link) || errors.As(err, &unreachable):
+		return "the Relay could not be reached"
+	}
+	return "the read failed"
 }
 
 // refuseUnlisted refuses a service Home Assistant does not have, before any
@@ -58,7 +93,7 @@ func readServices(s *relaySession) map[string]serviceSpec {
 // list proves nothing, so it refuses too (fail closed).
 func (e *tierEngine) refuseUnlisted(env *verbEnvelope, req planCallRequest, spec serviceSpec) error {
 	if !spec.known {
-		f := refuse(env, tierReason{Code: reasonServiceListUnread, Via: req.Service})
+		f := refuse(env, tierReason{Code: reasonServiceListUnread, Via: req.Service, Detail: readCause(e.servicesErr)})
 		f.next = "Home Assistant's service list could not be read, so " + req.Service + " is unproven. Plan again in a moment, show its preview, and get confirmation again; if it keeps failing, run ha-nova doctor."
 		return f
 	}

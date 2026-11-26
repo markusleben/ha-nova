@@ -176,7 +176,7 @@ func (m batchMember) item(i int) batchItem {
 func (s *relaySession) forgetReads() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.memo = map[string]*relayMemo{}
+	s.memo, s.warmFailed = map[string]*relayMemo{}, map[string]bool{}
 }
 
 // executeBatch sends the members in order. A failure before the first send

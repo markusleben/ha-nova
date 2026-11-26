@@ -26,10 +26,10 @@ func (e *tierEngine) warmCallReads(req planCallRequest) {
 		return
 	}
 	ws := func(wsType string) func() {
-		return func() { _, _ = e.s.ws(map[string]any{"type": wsType}) }
+		return func() { e.s.warmWS(map[string]any{"type": wsType}) }
 	}
 	core := func(path string) func() {
-		return func() { _, _, _ = e.s.coreGET(path) }
+		return func() { _, _, _ = e.s.warmCoreGET(path) }
 	}
 	var reads []func()
 	for _, id := range req.EntityIDs[:min(len(req.EntityIDs), 2)] {
@@ -60,17 +60,17 @@ func (e *tierEngine) warmCensus() {
 		return
 	}
 	e.warm(func() {
-		if _, helpers, _ := helperComponents(e.s.coreGET("/api/config")); helpers && e.s.yamlHelpersRun() {
-			_, _ = e.s.read(yamlHelpersEndpoint, map[string]any{})
+		if _, helpers, _ := helperComponents(e.s.warmCoreGET("/api/config")); helpers && e.s.yamlHelpersRun() {
+			_, _ = e.s.warmRead(yamlHelpersEndpoint, map[string]any{})
 		}
 	})
 	if !e.s.gateExempt() { // readBatched never batches for the App's own callers
 		e.warm(func() { e.s.wsBatch() })
 	}
 	e.warm(func() {
-		status, body, err := e.s.coreGET("/api/states")
+		status, body, err := e.s.warmCoreGET("/api/states")
 		if rows, err := censusRows(status, body, err); err == nil && len(rows) <= tierMaxAutomations {
-			e.readCensus(rows, relaySessionMaxConcurrent/2) // the walk keeps the other slots
+			e.readCensus(rows, relaySessionMaxConcurrent/2, true) // the walk keeps the other slots
 		}
 	})
 }
@@ -78,13 +78,13 @@ func (e *tierEngine) warmCensus() {
 // warmQuiet sends the search/related reads of every place loud checks for
 // id at once; loud reads them one by one from the memo.
 func (e *tierEngine) warmQuiet(id string) {
-	if e.s == nil || e.listeners == nil || e.s.replaying() { // without listeners loud reads nothing
+	if e.s == nil || e.listeners == nil || e.s.replaying() || !e.placesWarm() { // without listeners loud reads nothing
 		return
 	}
 	items, _, _ := e.relatedItems(id) // an unreadable registry: loud says so
 	var reads []func()
 	for _, item := range items {
-		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+		reads = append(reads, func() { e.s.warmWS(e.relatedRequest(item[0], item[1])) })
 	}
 	prefetch(reads)
 }
@@ -129,6 +129,29 @@ func (e *tierEngine) recheckListeners() {
 			e.gap(reasonListener, "", viaListenerScan, fmt.Sprintf("%s: %d listeners at the census, %d before sealing", t, e.events[t], now[t]))
 		}
 	}
+}
+
+// warmState sends the read rawState makes for id, ahead of it.
+func (e *tierEngine) warmState(id string) { _, _, _ = e.s.warmCoreGET(e.statePath(id)) }
+
+// statePath: what rawState reads for id, the one state list once it serves
+// every state (useStateList).
+func (e *tierEngine) statePath(id string) string {
+	if e.stateList != nil {
+		return "/api/states"
+	}
+	return "/api/states/" + id
+}
+
+// placesWarm: the device and area registries relatedItems reads answered a
+// warm read, so a warm caller of it pins no failure nobody used.
+func (e *tierEngine) placesWarm() bool {
+	for _, kind := range []string{"device", "area"} {
+		if _, err := e.s.warmRead("ws", map[string]any{"type": "config/" + kind + "_registry/list"}); err != nil && !answered(err) {
+			return false
+		}
+	}
+	return true
 }
 
 // warm runs read in the background; evaluate waits for every one.

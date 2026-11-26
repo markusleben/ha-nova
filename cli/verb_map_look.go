@@ -106,7 +106,7 @@ func (x *homeIndex) whereUsed(s *relaySession, id string, limit int) (whereUsedR
 	}
 	var reads []func()
 	for _, request := range requests {
-		reads = append(reads, func() { _, _ = s.ws(request) })
+		reads = append(reads, func() { s.warmWS(request) })
 	}
 	var boards []lovelaceBoard
 	var boardGaps []refGap

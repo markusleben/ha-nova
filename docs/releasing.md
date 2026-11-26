@@ -42,6 +42,10 @@ npm run verify:next-release-version -- v<version>
   into `main` starts the tag sequence immediately. The release-prep PR never
   bumps the App: a train that changes the App gets its bump in the App
   promote PR (App Images), which carries the final tag
+- train size: one or two topics. The train goes to release-prep as soon as
+  they are in; a topic that isn't ready waits for the next train. When an App
+  topic would hold CLI or skills topics that are ready, it gets its own train,
+  so those ship in their lower class (section 3) first
 - preflight: audit open PRs (Dependabot, workflows, installer/update,
   release metadata) as `blocker now` vs `separate later`; never pull a red or
   unreviewed workflow/release PR in right before publish
@@ -58,6 +62,8 @@ npm run verify:node
 The host-safe gate: release metadata sync, production `npm audit` on both
 lockfiles (`bash scripts/release/verify-npm-audit.sh`), blocked files,
 TypeScript, the docs fact-check, build, and every Vitest test in one sweep.
+CI's `verify` job runs it on every PR head, the landing PR's included, so run
+it locally only for a state CI didn't check.
 `npm run verify` adds the Go CLI tests; `release.yml` and
 `release-candidate.yml` run it on Linux. On macOS, run the Go suite only in a
 Linux container or a separate macOS user (`docs/reference/testing.md`).
@@ -75,10 +81,47 @@ installed artifacts execute, or a train that changes the App (App Images →
 App promote PR: the RC lanes are where its preview is tested). **RC
 skippable** for skills/docs-only releases. When in doubt, run the RC.
 
+**Release classes.** What a train changes decides its gates; a mixed train
+takes the highest class, and when in doubt, the higher one.
+
+- **Skills & docs**: only `skills/`, docs, and tests or lanes (`tests/`,
+  `scripts/e2e/`).
+- **CLI**: Go code or the onboarding/update flow, but nothing of the full
+  class.
+- **Full**: a train that changes the App (App Images: an App source, or a
+  skills or CLI change chat-app users need from the App's bridge), the guided
+  App update (its proof needs a newer App), `install.sh`, `install.ps1`,
+  `scripts/release/`, `.goreleaser.yml` beyond notes text, release
+  workflows, or the `release-tags-protection` ruleset. A skills or CLI train
+  that keeps the stable App says in the release PR why chat apps can wait for
+  the next App train.
+
+| Gate | Skills & docs | CLI | Full |
+| --- | --- | --- | --- |
+| Dispatched `e2e-disposable-ha.yml` and `testbed-ha-stable.yml` on the tagged commit (section 4 step 2) | yes | yes | yes |
+| `-rcN` rehearsal: `release.yml`, `rc-lane`, `rc-macos-lane.yml` | no | yes | yes |
+| `vm-lane` | no | when a path its rows prove changed: pairing, confirmations (the window, the NOVA page approval), credential stores or setup, the Supervisor/Ingress or Link transport, install/update/uninstall; a window change needs the Win11 VM, not `--container` | yes (`--app-branch` when the App changes) |
+| App promote PR, App proof, chat-app lanes | no | no | when the App changes (App Images) |
+| Cloud checklist (section 6) | `provenance` | `provenance` plus the rows whose path changed | the same, plus the App rows when the App changes |
+| Final `release.yml` and post-publish checks (section 7) | yes | yes | yes |
+
+A skipped gate is safe only because what it tests did not change: the RC
+rehearsal tests delivery machinery and the tag's binary; `vm-lane` adds the
+real Supervisor App, pairing with a six-digit code, the update from the last
+stable, confirmations through the window and the NOVA page, the guided App
+update, and uninstall with purge; the App gates test
+the App. A skills & docs train changes none of them, and its skills are proven
+on the test bed at PR time and by the dispatched bed run. A CLI train without
+those paths keeps the stable App and installers, and the rc lane's client
+matrix (install of the last stable, update to the RC, uninstall), its bed
+with the tag's binary, and `release.yml`'s installer smokes on three OSes
+cover the binary. The release PR names every skipped lane with its class as
+the no-delta record (AGENTS.md → Releases).
+
 An RC passes the gate only when every row of `npm run rc-lane` (section 4)
-is PASS on it (the one SKIP section 4 allows, named in the release PR) and
-`npm run vm-lane` has no FAIL. A failing row is fixed or its check is,
-never waived for the final.
+is PASS on it (the one SKIP section 4 allows, named in the release PR) and,
+where the class requires it, `npm run vm-lane` has no FAIL. A failing row is
+fixed or its check is, never waived for the final.
 
 **A late find gets a lane check.** A defect found after an RC tag (the
 real-home preview, the phone test, a tester) gets a check that fails on the
@@ -173,12 +216,20 @@ deploy or tag.
    (with file access), so on a local host no other bed may run.
    Known limit: no lane reaches the App over Home Assistant Link (the
    Cloud checklist's `app_update_over_link` row does).
-   Then the Windows onboarding proof, automated on the maintainer's
+   Then, where the release class requires it (section 3), the Windows
+   onboarding proof, automated on the maintainer's
    throwaway UTM VMs ("HA NOVA Win11 Test" and "HA NOVA HAOS Test" running;
    "HA NOVA Ubuntu Test" optional):
    ```bash
    npm run vm-lane -- vX.Y.Z-rcN
    ```
+   Host memory: the lane runs while the host has at least 30 % memory free
+   (`memory_pressure`) and stops below that; swap doesn't count. It refuses
+   to start below 30 %; during the run, stop it (Ctrl-C runs its cleanup)
+   when free memory drops below 30 %. A rerun needs no new go when only the
+   VMs' readiness (boot, Supervisor, Ingress) failed and no HA NOVA row was
+   red. A red row, or an Ingress 502 for longer than 3 minutes, is a finding:
+   report it to the maintainer before any further run.
    When the host can't hold the Win11 VM next to HAOS, add `--container`
    (the vm-lane spec's HAOS-only pass): the App rows run in a throwaway Linux
    container and the Windows rows are SKIP. Say in the release PR that
@@ -223,7 +274,8 @@ deploy or tag.
    bash scripts/release/verify-relay-image.sh <promote-merge-sha> <relay-version>
    ```
    and for the `app-image.yml` push run on it (`app-image-verify` green; App
-   Images below). Then dispatch `e2e-disposable-ha.yml` on it as in step 2.
+   Images below). Then dispatch `e2e-disposable-ha.yml` and
+   `testbed-ha-stable.yml` on it as in step 2.
    `<final-sha>` is `<promote-merge-sha>` for a train that changes the App,
    else `<reviewed-merge-sha>`. A pushed tag can't be reused, so check it
    first, then cut the final tag on it:

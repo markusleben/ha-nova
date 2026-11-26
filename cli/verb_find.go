@@ -232,7 +232,7 @@ func attachAliases(s *relaySession, rows []registryRow, q findQuery) error {
 	}
 	var reads []func()
 	for _, request := range requests {
-		reads = append(reads, func() { _, _ = s.ws(request) })
+		reads = append(reads, func() { s.warmWS(request) })
 	}
 	prefetch(reads)
 	for _, request := range requests {

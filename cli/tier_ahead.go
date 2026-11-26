@@ -33,12 +33,15 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 			}
 		}
 		e.aheadActed += len(level)
+		if !e.placesWarm() { // relatedItems below would pin their failure for the walk
+			return
+		}
 		var reads []func()
 		for _, id := range level {
-			reads = append(reads, func() { _, _, _ = e.rawState(id) })
+			reads = append(reads, func() { e.warmState(id) })
 			items, _, _ := e.relatedItems(id) // an unreadable registry: the walk's scan says so
 			for _, item := range items {
-				reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+				reads = append(reads, func() { e.s.warmWS(e.relatedRequest(item[0], item[1])) })
 			}
 		}
 		prefetch(reads)
@@ -47,6 +50,9 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		for _, id := range level {
 			items, direct, _ := e.relatedItems(id)
 			for i, item := range items {
+				if _, err := e.s.warmRead("ws", e.relatedRequest(item[0], item[1])); err != nil && !answered(err) {
+					continue // no answer: the walk's scan reads it again
+				}
 				related, _ := e.related(item[0], item[1])
 				for _, automation := range related["automation"] {
 					on[automation] = append(on[automation], id)
@@ -76,20 +82,28 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		automations = append(automations, placeOnly...) // uncapped, like scanConsumers: the read deadline bounds them
 		configs := make([]map[string]any, len(automations))
 		reads = nil
-		states := e.stateList != nil || len(automations) <= relaySessionMaxConcurrent // more: scanConsumers reads them from one state list (prefetchStates)
+		states := e.stateList == nil && len(automations) <= relaySessionMaxConcurrent // more: scanConsumers reads them from one state list (prefetchStates)
+		if e.stateList != nil {
+			reads = append(reads, func() { e.warmState("") }) // one list serves them all
+		}
 		for i, automation := range automations {
 			e.ahead["consumer "+automation] = true
 			if states { // the walk reads its state too (runConfig, scanConsumers)
-				reads = append(reads, func() { _, _, _ = e.rawState(automation) })
+				reads = append(reads, func() { e.warmState(automation) })
 			}
 			reads = append(reads, func() {
-				if named[automation] || !e.placeOnlyMiss(automation, places[automation]) {
+				if named[automation] || !e.placeOnlyMiss(automation, places[automation], true) {
 					configs[i] = e.warmConfig(automation)
 				}
 			})
 		}
 		prefetch(reads)
 		ids = nil
+		if !e.fullRead && slices.ContainsFunc(configs, namesEntryID) { // triggerMatch would pin the full registry's failure
+			if _, err := e.s.warmRead("ws", map[string]any{"type": "config/entity_registry/list"}); err != nil && !answered(err) {
+				return
+			}
+		}
 		for i, automation := range automations {
 			if (named[automation] || targetsPlace(configs[i], places[automation])) && slices.ContainsFunc(on[automation], func(id string) bool {
 				verdict, read := e.triggerMatch(configs[i], id, stateDelta{})
@@ -140,19 +154,34 @@ func namesEntryID(cfg map[string]any) bool {
 }
 
 // warmConfig reads an automation's config as runConfig does (the one Home
-// Assistant loaded), blueprint substituted, through the session only; nil
-// when it can't.
+// Assistant loaded), blueprint substituted, through the session only, ahead
+// of the walk; nil when it can't.
 func (e *tierEngine) warmConfig(automation string) map[string]any {
+	return e.configOf(automation, true)
+}
+
+// configOf is warmConfig for a caller that decides on it (warm false): its
+// failure stays what the plan saw.
+func (e *tierEngine) configOf(automation string, warm bool) map[string]any {
+	if warm {
+		if _, err := e.s.warmRead("ws", loadedConfigRequest(automation, "automation")); err != nil && !answered(err) {
+			return nil
+		}
+	}
 	raw, ok, err := loadedConfig(e.s, automation, "automation")
 	if err != nil || !ok {
 		return nil
 	}
-	return e.warmBlueprint("automation", raw)
+	return e.blueprintOf("automation", raw, warm)
 }
 
 // warmBlueprint substitutes a config's blueprint through the session, as
-// parseConfig asks for it; the config itself when it uses none.
+// parseConfig asks for it, ahead of it; the config itself when it uses none.
 func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[string]any {
+	return e.blueprintOf(domain, raw, true)
+}
+
+func (e *tierEngine) blueprintOf(domain string, raw json.RawMessage, warm bool) map[string]any {
 	var cfg map[string]any
 	if json.Unmarshal(raw, &cfg) != nil || len(cfg) == 0 { // null or {}: unread (MAR-272)
 		return nil
@@ -164,7 +193,11 @@ func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[strin
 	var sub struct {
 		Config map[string]any `json:"substituted_config"`
 	}
-	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil || len(sub.Config) == 0 {
+	read := e.s.ws
+	if warm {
+		read = func(payload map[string]any) (json.RawMessage, error) { return e.s.warmRead("ws", payload) }
+	}
+	if data, err := read(blueprintRequest(domain, bp)); err != nil || json.Unmarshal(data, &sub) != nil || len(sub.Config) == 0 {
 		return nil
 	}
 	return withInstanceKeys(domain, sub.Config, cfg)

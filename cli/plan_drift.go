@@ -200,6 +200,7 @@ func recheck(s *relaySession, env *verbEnvelope, stored storedPlan, compute func
 func (s *relaySession) forgetFailed() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	clear(s.warmFailed)
 	for key, m := range s.memo {
 		select {
 		case <-m.done:

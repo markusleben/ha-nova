@@ -152,7 +152,7 @@ func (e *tierEngine) listenerTable() *listenerTable {
 		return nil
 	}
 	e.s.censusReads(true)
-	e.readCensus(rows, 0)
+	e.readCensus(rows, 0, false)
 	e.s.censusReads(false)
 	table := &listenerTable{counts: map[string]int{}, hits: map[string][]listenerHit{}, waits: map[string]bool{}}
 	for _, row := range rows {
@@ -266,7 +266,7 @@ func censusRows(status int, body json.RawMessage, err error) ([]*censusRow, erro
 // takes them) and its blueprint substitution, concurrently within the
 // session's request slots, or within inFlight of them (0: all). Session
 // reads only: warmCensus runs it too.
-func (e *tierEngine) readCensus(rows []*censusRow, inFlight int) {
+func (e *tierEngine) readCensus(rows []*censusRow, inFlight int, warm bool) {
 	requests := make([]map[string]any, len(rows))
 	for i, row := range rows {
 		domain, _ := splitID(row.entityID)
@@ -285,6 +285,11 @@ func (e *tierEngine) readCensus(rows []*censusRow, inFlight int) {
 			workers <- struct{}{}
 			defer func() { <-workers }()
 			domain, _ := splitID(row.entityID)
+			if warm { // warmCensus: a config that got no answer is the scan's to read again
+				if _, err := e.s.warmRead("ws", loadedConfigRequest(row.entityID, domain)); err != nil && !answered(err) {
+					return
+				}
+			}
 			loaded, ok, err := loadedConfig(e.s, row.entityID, domain) // what runs, so what holds the listeners
 			switch {
 			case err != nil: // a failed read: typed below, never "no config"

@@ -78,10 +78,10 @@ var (
 
 func adviseUpdates(s *relaySession, x *homeIndex, baseline string) (map[string]any, error) {
 	prefetch([]func(){
-		func() { _, _, _ = s.coreGET("/api/config") },
-		func() { _, _ = s.ws(repairsRequest) },
-		func() { _, _ = s.ws(backupRequest) },
-		func() { _, _ = s.ws(manifestList) },
+		func() { _, _, _ = s.warmCoreGET("/api/config") },
+		func() { s.warmWS(repairsRequest) },
+		func() { s.warmWS(backupRequest) },
+		func() { s.warmWS(manifestList) },
 	})
 	a := &updateAdvisor{s: s, x: x, domains: map[string]bool{}, ready: []map[string]any{}, gaps: []map[string]any{}, risk: []map[string]any{}}
 	if err := a.loadPending(); err != nil {
@@ -96,7 +96,7 @@ func adviseUpdates(s *relaySession, x *homeIndex, baseline string) (map[string]a
 		}
 		var reads []func()
 		for _, path := range paths {
-			reads = append(reads, func() { _, _ = s.read("supervisor", supervisorGet(path)) })
+			reads = append(reads, func() { _, _ = s.warmRead("supervisor", supervisorGet(path)) })
 		}
 		prefetch(reads)
 	}
