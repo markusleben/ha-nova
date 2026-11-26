@@ -43,6 +43,10 @@ var fakeRelayBatch atomic.Bool
 // fakeRelayBatchFails: a batch is answered 503 GATE_UNAVAILABLE as a whole.
 var fakeRelayBatchFails atomic.Bool
 
+// fakeRelayBatchHold: while set, a batch waits for it to close before it is
+// answered.
+var fakeRelayBatchHold atomic.Pointer[chan struct{}]
+
 func (l *fakeRelayLog) all() []fakeRelayCall {
 	l.mu.Lock()
 	defer l.mu.Unlock()

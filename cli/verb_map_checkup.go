@@ -94,10 +94,10 @@ func checkupHome(s *relaySession, x *homeIndex) (map[string]any, error) {
 	var logs json.RawMessage
 	var logsErr error
 	prefetch([]func(){
-		func() { _, _, _ = s.coreGET("/api/config") },
-		func() { _, _ = s.ws(repairsRequest) },
-		func() { _, _ = s.ws(backupRequest) },
-		func() { _, _ = s.ws(manifestList) },
+		func() { _, _, _ = s.warmCoreGET("/api/config") },
+		func() { s.warmWS(repairsRequest) },
+		func() { s.warmWS(backupRequest) },
+		func() { s.warmWS(manifestList) },
 		func() {
 			if logsErr = mcpDemoRefusal(s.cfg.demoToken != "", "ws", []byte(logFactsBody)); logsErr == nil {
 				logs, logsErr = readLogFacts(s)
@@ -119,9 +119,9 @@ func checkupHome(s *relaySession, x *homeIndex) (map[string]any, error) {
 	if a.hassio {
 		c.facts["supervisor"] = "running"
 		prefetch([]func(){
-			func() { _, _ = s.read("supervisor", supervisorGet("/resolution/info")) },
-			func() { _, _ = s.read("supervisor", supervisorGet("/host/info")) },
-			func() { _, _ = s.read("supervisor", supervisorGet("/addons")) },
+			func() { _, _ = s.warmRead("supervisor", supervisorGet("/resolution/info")) },
+			func() { _, _ = s.warmRead("supervisor", supervisorGet("/host/info")) },
+			func() { _, _ = s.warmRead("supervisor", supervisorGet("/addons")) },
 		})
 		c.readApps()
 		c.checkSystem()
@@ -269,7 +269,7 @@ func (c *checkup) checkResources() {
 	}
 	var reads []func()
 	for _, src := range sources {
-		reads = append(reads, func() { _, _ = c.a.s.read("supervisor", supervisorGet(src.path)) })
+		reads = append(reads, func() { _, _ = c.a.s.warmRead("supervisor", supervisorGet(src.path)) })
 	}
 	prefetch(reads)
 	usage := []checkupUsage{}

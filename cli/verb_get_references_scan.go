@@ -15,10 +15,10 @@ import (
 // (session memo), get's related check included; scanReferences still waits
 // for them in its order, so its first error stops it as soon as it comes.
 func warmReferences(s *relaySession, entityID string) {
-	reads := []func(){func() { _, _, _ = s.coreGET("/api/states") }}
+	reads := []func(){func() { _, _, _ = s.warmCoreGET("/api/states") }}
 	for _, request := range []map[string]any{{"type": "config/entity_registry/list"}, {"type": "get_panels"}, {"type": "lovelace/dashboards/list"},
 		{"type": "energy/get_prefs"}, {"type": "search/related", "item_type": "entity", "item_id": entityID}} {
-		reads = append(reads, func() { _, _ = s.ws(request) })
+		reads = append(reads, func() { s.warmWS(request) })
 	}
 	warm(reads)
 }
@@ -118,7 +118,7 @@ type lovelaceBoard struct {
 func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
 	var listed []dashboardEntry
 	var listErr error
-	prefetch([]func(){func() { _, _ = s.ws(map[string]any{"type": "get_panels"}) }, func() { listed, listErr = readDashboards(s) }})
+	prefetch([]func(){func() { s.warmWS(map[string]any{"type": "get_panels"}) }, func() { listed, listErr = readDashboards(s) }})
 	var panels map[string]struct {
 		Component string  `json:"component_name"`
 		URLPath   string  `json:"url_path"`
@@ -151,7 +151,7 @@ func readLovelacePanels(s *relaySession) ([]lovelaceBoard, []refGap, error) {
 		if p.URLPath != defaultDashboard || findDashboard(listed, defaultDashboard) != nil {
 			payloads[i]["url_path"] = p.URLPath
 		}
-		reads = append(reads, func() { _, _ = s.ws(payloads[i]) })
+		reads = append(reads, func() { s.warmWS(payloads[i]) })
 	}
 	prefetch(reads)
 	for i, key := range keys {

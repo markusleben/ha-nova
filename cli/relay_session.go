@@ -94,6 +94,7 @@ type relaySession struct {
 	slots        chan struct{}
 	mu           sync.Mutex
 	memo         map[string]*relayMemo
+	warmFailed   map[string]bool // warm reads settle dropped: made, so reads() keeps them unanswered
 	relayVersion string
 	answered     bool             // the Relay has answered at least one request
 	unreachable  error            // transport failure before the Relay ever answered
@@ -117,6 +118,7 @@ type relayMemo struct {
 	done chan struct{}
 	data json.RawMessage
 	err  error
+	warm bool // sent ahead of its consumer (warmRead): no answer leaves no entry (settle)
 }
 
 func newRelaySession(paths runtimePaths, opts verbOptions) (*relaySession, error) {
@@ -163,14 +165,15 @@ func relaySessionOn(paths runtimePaths, cfg runtimeConfig, transport relayTransp
 	client.Timeout = 0
 	transport.Client = &client
 	return &relaySession{
-		paths:     paths,
-		cfg:       cfg,
-		transport: transport,
-		server:    cfg.profileName(),
-		ctx:       ctx,
-		cancel:    cancel,
-		slots:     make(chan struct{}, relaySessionMaxConcurrent),
-		memo:      map[string]*relayMemo{},
+		paths:      paths,
+		cfg:        cfg,
+		transport:  transport,
+		server:     cfg.profileName(),
+		ctx:        ctx,
+		cancel:     cancel,
+		slots:      make(chan struct{}, relaySessionMaxConcurrent),
+		memo:       map[string]*relayMemo{},
+		warmFailed: map[string]bool{},
 	}
 }
 
@@ -188,6 +191,10 @@ func (s *relaySession) close() {
 // and body from the Relay envelope.
 func (s *relaySession) coreGET(path string) (int, json.RawMessage, error) {
 	data, err := s.read("core", map[string]any{"method": http.MethodGet, "path": path})
+	return coreStatus(path, data, err)
+}
+
+func coreStatus(path string, data json.RawMessage, err error) (int, json.RawMessage, error) {
 	if err != nil {
 		return 0, nil, err
 	}
@@ -219,7 +226,28 @@ func (s *relaySession) wsDecode(payload map[string]any, into any, what string) e
 
 // read checks the I1 allowlist, then sends each distinct request at most once
 // per session; concurrent identical callers share one in-flight request.
+// What a consumer was answered stays for the session, a failure too, so a
+// plan's evaluation, basis, and replay agree (fail closed).
 func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMessage, error) {
+	return s.readAs(endpoint, payload, false)
+}
+
+// warmRead sends a read ahead of its consumer (warm reads, prefetches,
+// batches). Its answer is the consumer's, Home Assistant's own refusal too;
+// when it gets no answer nobody has used that failure yet, so it is never
+// handed on: the consumer reads again (#1299, the first lamp call refused).
+func (s *relaySession) warmRead(endpoint string, payload map[string]any) (json.RawMessage, error) {
+	return s.readAs(endpoint, payload, true)
+}
+
+func (s *relaySession) warmWS(payload map[string]any) { _, _ = s.warmRead("ws", payload) }
+
+func (s *relaySession) warmCoreGET(path string) (int, json.RawMessage, error) {
+	data, err := s.warmRead("core", map[string]any{"method": http.MethodGet, "path": path})
+	return coreStatus(path, data, err)
+}
+
+func (s *relaySession) readAs(endpoint string, payload map[string]any, warm bool) (json.RawMessage, error) {
 	if err := checkReadOnlyRequest(endpoint, payload); err != nil {
 		return nil, err
 	}
@@ -228,37 +256,54 @@ func (s *relaySession) read(endpoint string, payload map[string]any) (json.RawMe
 		return nil, err
 	}
 	key := endpoint + " " + string(body)
-	s.mu.Lock()
-	replaying := s.replay != nil
-	if replaying { // replayReads: only the preview's reads, as they went
-		answered, made := s.replay[key]
-		s.diverged = s.diverged || !made
-		if !answered {
-			s.mu.Unlock()
-			return nil, errNotReplayed
+	for {
+		s.mu.Lock()
+		replaying := s.replay != nil
+		if replaying { // replayReads: only the preview's reads, as they went
+			answered, made := s.replay[key]
+			s.diverged = s.diverged || !made
+			if !answered {
+				s.mu.Unlock()
+				return nil, errNotReplayed
+			}
 		}
+		m, ok := s.memo[key]
+		if !ok {
+			m = &relayMemo{done: make(chan struct{}), warm: warm}
+			s.memo[key] = m
+		}
+		s.mu.Unlock()
+		if ok {
+			<-m.done
+			if !warm && m.warm && !answered(m.err) { // a warm read's failure: settle dropped it, read again
+				continue
+			}
+		} else {
+			switch endpoint {
+			case helperOptionsEndpoint:
+				m.data, m.err = s.helperOptions(body)
+			case yamlHelpersEndpoint:
+				m.data, m.err = s.yamlHelpers(body)
+			default:
+				m.data, m.err = s.send(endpoint, body)
+			}
+			s.settle(key, m)
+		}
+		s.lost(replaying, m.err)
+		return m.data, m.err
 	}
-	m, ok := s.memo[key]
-	if !ok {
-		m = &relayMemo{done: make(chan struct{})}
-		s.memo[key] = m
+}
+
+// settle ends a read: a warm read that got no answer leaves no entry, only
+// the note that it was made (a cut preview's replay fails it as it did).
+func (s *relaySession) settle(key string, m *relayMemo) {
+	s.mu.Lock()
+	if m.warm && !answered(m.err) && s.memo[key] == m {
+		delete(s.memo, key)
+		s.warmFailed[key] = true
 	}
 	s.mu.Unlock()
-	if ok {
-		<-m.done
-	} else {
-		switch endpoint {
-		case helperOptionsEndpoint:
-			m.data, m.err = s.helperOptions(body)
-		case yamlHelpersEndpoint:
-			m.data, m.err = s.yamlHelpers(body)
-		default:
-			m.data, m.err = s.send(endpoint, body)
-		}
-		close(m.done)
-	}
-	s.lost(replaying, m.err)
-	return m.data, m.err
+	close(m.done)
 }
 
 // readVerbSupervisorPaths: the Supervisor reads of the update advisor and the
