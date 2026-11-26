@@ -1,0 +1,125 @@
+name: RC lane
+
+# Runs the standard release-candidate check (scripts/e2e/rc-lane.mjs,
+# docs/releasing.md §4) on a disposable GitHub-hosted Linux runner: a checkout
+# at the tag, its own throwaway test bed, and the tag's published Linux binary.
+# No real Home Assistant, no keychain, no secrets. Row c (the chat bridge with
+# headless Claude) SKIPs: the runner has no Claude login, as the Mac container.
+# The table lands in the job summary; post it on the release-prep PR.
+#
+# Starts on its own when release.yml succeeds on an -rcN tag (it needs the
+# tag's published binaries), or by hand:
+#   gh workflow run rc-lane.yml --ref main -f tag=vX.Y.Z-rcN
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  pull_request:
+    paths:
+      - ".github/workflows/rc-lane.yml"
+  push:
+    branches:
+      - ci/rc-lane-actions
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release candidate tag, e.g. v0.36.0-rc2"
+        required: true
+
+run-name: rc lane ${{ inputs.tag || github.event.workflow_run.head_branch || 'v0.36.0-rc2' }}
+
+permissions:
+  contents: read
+
+jobs:
+  rc-lane:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       contains(github.event.workflow_run.head_branch, '-rc'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Read the tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ inputs.tag || github.event.workflow_run.head_branch || 'v0.36.0-rc2' }}
+        run: |
+          re='^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
+          [[ "$TAG" =~ $re ]] || { echo "::error::not a release tag: '$TAG'"; exit 1; }
+          [[ "$EVENT" != workflow_run || "$TAG" == *-rc* ]] || { echo "::error::$TAG is not an rc tag"; exit 1; }
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # The harness and the bed's Relay come from the tag, as on the Mac.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ steps.tag.outputs.tag }}
+          persist-credentials: false
+
+      - name: Check the tag is the commit release.yml published
+        if: github.event_name == 'workflow_run'
+        env:
+          WANT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$WANT" ]] || { echo "::error::the tag is at $(git rev-parse HEAD), release.yml ran on $WANT"; exit 1; }
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Run the rc lane
+        id: lane
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          # Read-only: the client matrix's GitHub API calls, off the shared anonymous limit.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          npm run rc-lane -- "$TAG" 2>&1 | tee "$RUNNER_TEMP/rc-lane.log"
+
+      - name: Write the job summary
+        if: always() && steps.tag.outcome == 'success'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          OUTCOME: ${{ steps.lane.outcome }}
+          LOG: ${{ runner.temp }}/rc-lane.log
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          node - << 'EOF'
+          const fs = require("node:fs");
+          const { TAG, OUTCOME, LOG, RUN_URL, GITHUB_STEP_SUMMARY } = process.env;
+          const lines = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split("\n") : [];
+          // rc-lane's closing table: fixed-width columns under "STEP  CHECK ... RESULT  DETAIL".
+          const at = lines.findLastIndex((l) => /^STEP  CHECK +RESULT  DETAIL$/.test(l));
+          const rows = [];
+          if (at >= 0) {
+            const r = lines[at].indexOf("RESULT"), d = lines[at].indexOf("DETAIL");
+            for (const l of lines.slice(at + 1)) {
+              if (!l.trim()) break;
+              rows.push([l.slice(0, 4), l.slice(6, r), l.slice(r, d), l.slice(d)].map((c) => c.trim()));
+            }
+          }
+          const verdict = lines.findLast((l) => l.startsWith(`rc-lane ${TAG}: `)) ?? `rc-lane ${TAG}: no result line (lane step ${OUTCOME})`;
+          const sha = (() => { try { return require("node:child_process").execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim(); } catch { return "-"; } })();
+          const cell = (c) => c.replaceAll("|", "\\|");
+          const md = [
+            `### ${verdict}`, "",
+            `Tag \`${TAG}\` at \`${sha}\`, GitHub Actions ubuntu-latest: ${RUN_URL}`, "",
+            ...(rows.length
+              ? ["| Step | Check | Result | Detail |", "| --- | --- | --- | --- |", ...rows.map((c) => `| ${c.map(cell).join(" | ")} |`)]
+              : ["No rc-lane table in the log; see the run's log."]),
+          ].join("\n");
+          fs.appendFileSync(GITHUB_STEP_SUMMARY, md + "\n");
+          // Same verdict as rc-lane's exit code; never green without a table free of FAIL.
+          if (OUTCOME === "success" && (!rows.length || rows.some((c) => c[2] === "FAIL"))) {
+            console.log("::error::the lane exited 0 without a clean table");
+            process.exit(1);
+          }
+          EOF
