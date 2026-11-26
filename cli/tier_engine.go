@@ -105,6 +105,7 @@ type tierEngine struct {
 	draft        bool                   // a config draft: it runs later, so plan-time state proves nothing
 	services     map[string]serviceSpec // /api/services by "domain.service"; nil when unreadable
 	servicesRead bool
+	servicesErr  error           // why the list could not be read (SERVICE_LIST_UNREAD's detail)
 	ownApp       *tierReason     // the first step that would stop the App HA NOVA runs in (latchOwnApp)
 	ahead        map[string]bool // what readAhead warmed: entities, and "consumer " + automation
 	aheadActed   int             // entities readAhead warmed (≤ tierMaxActed)
@@ -156,16 +157,20 @@ func (e *tierEngine) lift(level tierLevel) { e.raise(level, tierReason{}) }
 
 // prefetchStates warms the session memo with independent state reads; the
 // session caps them at 8 in flight, and the sequential pass then reads the
-// memo in a fixed order (results and errors alike), so output stays stable.
+// memo in a fixed order (results and errors alike), so output stays stable;
+// a warm read that got no answer leaves none: the pass reads it again.
 func (e *tierEngine) prefetchStates(ids []string) {
 	var reads []func()
 	for _, id := range ids {
 		if _, known := e.states[id]; !known && entityIDPattern.MatchString(id) {
-			reads = append(reads, func() { _, _, _ = e.rawState(id) })
+			reads = append(reads, func() { e.warmState(id) })
 		}
 	}
 	if len(reads) > relaySessionMaxConcurrent && e.stateList == nil { // more than one round of single reads: from now on one read serves every state
 		e.useStateList()
+	}
+	if e.stateList != nil && len(reads) > 0 {
+		reads = []func(){func() { e.warmState("") }} // one list serves them all, sent once
 	}
 	prefetch(reads)
 }

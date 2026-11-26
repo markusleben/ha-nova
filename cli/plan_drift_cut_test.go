@@ -731,7 +731,7 @@ func TestACutRecomputeWithoutTheYAMLHelpersApplies(t *testing.T) {
 		defer h.mu.Unlock()
 		h.hung[path] = n
 	}
-	hang("related:light.kitchen", 2) // the request and its retry: the check is cut short here
+	hang("related:light.kitchen", 10) // every read of it in the preview, its own included: the check is cut short here
 	_, planned := h.run(runCallCommand, "light.turn_on", "light.kitchen")
 	ff.mu.Lock()
 	read := len(ff.reads)

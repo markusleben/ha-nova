@@ -108,8 +108,11 @@ func (s *relaySession) yamlHelpersRun() bool {
 		Domain string `json:"domain"`
 	}
 	var rows []fullRegistryRow
-	if s.wsDecode(map[string]any{"type": "entity/source"}, &sources, "the entity sources") != nil ||
-		s.wsDecode(map[string]any{"type": "config/entity_registry/list"}, &rows, "the entity registry") != nil {
+	warm := func(payload map[string]any, into any) bool { // warmCensus only: a failure here is nobody's
+		data, err := s.warmRead("ws", payload)
+		return err == nil && json.Unmarshal(data, into) == nil
+	}
+	if !warm(map[string]any{"type": "entity/source"}, &sources) || !warm(map[string]any{"type": "config/entity_registry/list"}, &rows) {
 		return false
 	}
 	entryOf := map[string]string{}

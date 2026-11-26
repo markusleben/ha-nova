@@ -181,9 +181,9 @@ var (
 func loadHome(s *relaySession) (*homeData, error) {
 	ws := []map[string]any{floorsRequest, {"type": "config/area_registry/list"}, {"type": "config/device_registry/list"},
 		{"type": "config/entity_registry/list"}, entriesRequest, helpersRequest}
-	reads := []func(){func() { _, _, _ = s.coreGET("/api/states") }}
+	reads := []func(){func() { _, _, _ = s.warmCoreGET("/api/states") }}
 	for _, request := range ws {
-		reads = append(reads, func() { _, _ = s.ws(request) })
+		reads = append(reads, func() { s.warmWS(request) })
 	}
 	prefetch(reads)
 	h := &homeData{floors: []floorRow{}}

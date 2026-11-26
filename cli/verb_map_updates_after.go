@@ -91,9 +91,9 @@ func (a *updateAdvisor) saveBaseline(file string) map[string]any {
 
 func afterUpdate(s *relaySession, x *homeIndex, file string) (map[string]any, error) {
 	prefetch([]func(){
-		func() { _, _, _ = s.coreGET("/api/config") },
-		func() { _, _ = s.ws(repairsRequest) },
-		func() { _, _ = s.ws(tracesRequest) },
+		func() { _, _, _ = s.warmCoreGET("/api/config") },
+		func() { s.warmWS(repairsRequest) },
+		func() { s.warmWS(tracesRequest) },
 	})
 	a := &updateAdvisor{s: s, x: x, domains: map[string]bool{}, ready: []map[string]any{}, gaps: []map[string]any{}}
 	if err := a.loadPending(); err != nil {

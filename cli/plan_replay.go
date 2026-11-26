@@ -31,6 +31,9 @@ func (s *relaySession) reads() map[string]bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := map[string]bool{}
+	for key := range s.warmFailed { // made, no answer; a consumer's own read below wins
+		out[key] = false
+	}
 	for key, m := range s.memo {
 		select {
 		case <-m.done:
