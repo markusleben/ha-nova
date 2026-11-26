@@ -136,7 +136,8 @@ deploy or tag.
    gh run list --workflow rc-lane.yml --limit 5
    gh run watch <exact-rc-lane-run-id> --exit-status
    ```
-   The run's job summary holds the table as Markdown. Fallback when Actions
+   The run passes only when its `rc-lane` job succeeded; its job summary
+   holds the table as Markdown, headed by the tag and commit it tested. Fallback when Actions
    can't run it: from a checkout at the tag, `npm run rc-lane -- vX.Y.Z-rcN`
    on a Linux host, or `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN` on
    a Mac: from 0.32 every HA NOVA command on macOS looks up its key in the

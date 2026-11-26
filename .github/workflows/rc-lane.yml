@@ -24,7 +24,7 @@ on:
         description: "Release candidate tag, e.g. v0.36.0-rc2"
         required: true
 
-run-name: rc lane ${{ inputs.tag || github.event.workflow_run.head_branch || 'v0.36.0-rc2' }}
+run-name: ${{ github.event_name == 'pull_request' && 'rc lane smoke on v0.36.0-rc2 (workflow change)' || format('rc lane {0}', inputs.tag || github.event.workflow_run.head_branch) }}
 
 permissions:
   contents: read
@@ -35,6 +35,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.path == '.github/workflows/release.yml' &&
        contains(github.event.workflow_run.head_branch, '-rc'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -46,8 +47,8 @@ jobs:
           TAG: ${{ inputs.tag || github.event.workflow_run.head_branch || 'v0.36.0-rc2' }}
         run: |
           re='^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$'
-          [[ "$TAG" =~ $re ]] || { echo "::error::not a release tag: '$TAG'"; exit 1; }
-          [[ "$EVENT" != workflow_run || "$TAG" == *-rc* ]] || { echo "::error::$TAG is not an rc tag"; exit 1; }
+          [[ "$TAG" =~ $re ]] || { echo "::error::the tag must look like vX.Y.Z-rcN (or vX.Y.Z)"; exit 1; }
+          [[ "$EVENT" != workflow_run || "$TAG" == *-rc* ]] || { echo "::error::not an rc tag"; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       # The harness and the bed's Relay come from the tag, as on the Mac.
@@ -70,6 +71,7 @@ jobs:
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: cli/go.mod
+          cache: false
 
       - name: Run the rc lane
         id: lane
@@ -94,16 +96,19 @@ jobs:
           const { TAG, OUTCOME, LOG, RUN_URL, GITHUB_STEP_SUMMARY } = process.env;
           const lines = fs.existsSync(LOG) ? fs.readFileSync(LOG, "utf8").split("\n") : [];
           // rc-lane's closing table: fixed-width columns under "STEP  CHECK ... RESULT  DETAIL".
+          // A detail may span lines (an error message): those continue the row above.
           const at = lines.findLastIndex((l) => /^STEP  CHECK +RESULT  DETAIL$/.test(l));
+          const end = lines.findLastIndex((l) => l.startsWith(`rc-lane ${TAG}: `));
           const rows = [];
-          if (at >= 0) {
+          if (at >= 0 && end > at) {
             const r = lines[at].indexOf("RESULT"), d = lines[at].indexOf("DETAIL");
-            for (const l of lines.slice(at + 1)) {
-              if (!l.trim()) break;
-              rows.push([l.slice(0, 4), l.slice(6, r), l.slice(r, d), l.slice(d)].map((c) => c.trim()));
+            for (const l of lines.slice(at + 1, end)) {
+              const c = [l.slice(0, 4), l.slice(6, r), l.slice(r, d), l.slice(d)].map((s) => s.trim());
+              if (/^(PASS|FAIL|SKIP|WARN)$/.test(c[2]) && l.slice(4, 6) === "  " && c[0] && c[1]) rows.push(c);
+              else if (rows.length && l.trim()) rows.at(-1)[3] += " " + l.trim();
             }
           }
-          const verdict = lines.findLast((l) => l.startsWith(`rc-lane ${TAG}: `)) ?? `rc-lane ${TAG}: no result line (lane step ${OUTCOME})`;
+          const verdict = end > at && at >= 0 ? lines[end] : `rc-lane ${TAG}: no complete table (lane step ${OUTCOME})`;
           const sha = (() => { try { return require("node:child_process").execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim(); } catch { return "-"; } })();
           const cell = (c) => c.replaceAll("|", "\\|");
           const md = [
@@ -115,7 +120,7 @@ jobs:
           ].join("\n");
           fs.appendFileSync(GITHUB_STEP_SUMMARY, md + "\n");
           // Same verdict as rc-lane's exit code; never green without a table free of FAIL.
-          if (OUTCOME === "success" && (!rows.length || rows.some((c) => c[2] === "FAIL"))) {
+          if (OUTCOME === "success" && (!rows.length || rows.some((c) => c[2] === "FAIL") || !verdict.includes(": all PASS"))) {
             console.log("::error::the lane exited 0 without a clean table");
             process.exit(1);
           }
