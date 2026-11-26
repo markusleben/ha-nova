@@ -169,6 +169,9 @@ func (e *tierEngine) prefetchStates(ids []string) {
 	if len(reads) > relaySessionMaxConcurrent && e.stateList == nil { // more than one round of single reads: from now on one read serves every state
 		e.useStateList()
 	}
+	if e.stateList != nil && len(reads) > 0 {
+		reads = []func(){func() { e.warmState("") }} // one list serves them all, sent once
+	}
 	prefetch(reads)
 }
 

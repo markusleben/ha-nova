@@ -14,7 +14,7 @@ import (
 
 func withFakeBatches(t *testing.T) {
 	fakeRelayBatch.Store(true)
-	t.Cleanup(func() { fakeRelayBatch.Store(false); fakeRelayBatchFails.Store(false) })
+	t.Cleanup(func() { fakeRelayBatch.Store(false); fakeRelayBatchFails.Store(false); fakeRelayBatchHold.Store(nil) })
 }
 
 // censusHome: twenty listening automations, one whose config is gone, and a
@@ -80,10 +80,12 @@ func TestTheCensusReadsConfigsInBatchesWithTheSameResult(t *testing.T) {
 			t.Fatalf("%s: batches = %d, want 2", tc.name, got)
 		}
 		// Every answered config is read once. The failing one is read by
-		// the warm census, the scan's batch, and the scan itself at most,
-		// whichever of them gets to it first (#1299).
+		// the warm census's batch, the scan's batch, the warm single, and
+		// the scan itself at most, whichever of them gets to it first
+		// (#1299); TestAWarmBatchItemWithNoAnswerIsReadAgain proves the
+		// read again.
 		for label, log := range map[string]*fakeRelayLog{"single": singleLog, "batched": batchLog} {
-			if answered, failing := configReads(log)-broken(log), broken(log); answered != 22 || tc.failed != (failing > 0) || failing > 3 {
+			if answered, failing := configReads(log)-broken(log), broken(log); answered != 22 || tc.failed != (failing > 0) || failing > 4 {
 				t.Fatalf("%s %s: answered config reads %d (want 22), failing one read %d times", tc.name, label, answered, failing)
 			}
 		}
@@ -194,6 +196,9 @@ func serveFakeBatch(t *testing.T, w http.ResponseWriter, r *http.Request, log *f
 		t.Errorf("the gate would not pass this batch as a read (%+v): %s", check, raw)
 	}
 	log.batches.Add(1)
+	if hold := fakeRelayBatchHold.Load(); hold != nil {
+		<-*hold
+	}
 	if fakeRelayBatchFails.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": "GATE_UNAVAILABLE", "message": "not_found is not this read's answer"}})

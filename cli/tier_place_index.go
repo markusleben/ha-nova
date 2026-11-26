@@ -116,18 +116,18 @@ func (x *placeIndex) save() {
 // else from its config (a hit that targets one is read too, for its scan);
 // false when that config can't be read (it goes on as a consumer: typed,
 // never clean). Safe to call concurrently (session reads only).
-func (e *tierEngine) placeOnlyMiss(automation string, places [][2]string) bool {
-	stamp := e.stateStamp(automation)
+func (e *tierEngine) placeOnlyMiss(automation string, places [][2]string, warm bool) bool {
+	stamp := e.stateStamp(automation, warm)
 	key := fmt.Sprintf("place-index %s %s %v", automation, stamp, places) // a cut preview's skip, for its replay (plan_replay.go)
 	if e.s.replaying() {
 		if made, known := e.s.replayed(key); known && made && stamp != "" {
 			return true
 		}
-		return e.liveMiss(automation, places)
+		return e.liveMiss(automation, places, warm)
 	}
 	config := map[string]any{"type": "automation/config", "entity_id": automation}
 	if stamp == "" || e.s.memoized("ws", config) { // read already (maybe before this state): that read decides, and proves no pair
-		return e.liveMiss(automation, places)
+		return e.liveMiss(automation, places, warm)
 	}
 	x := e.s.placeIndex()
 	x.mu.Lock()
@@ -139,7 +139,7 @@ func (e *tierEngine) placeOnlyMiss(automation string, places [][2]string) bool {
 	// The state answered before this config read went out: a reload in
 	// between gives the config a stamp that is already stale, never the
 	// other way round.
-	cfg := e.warmConfig(automation)
+	cfg := e.configOf(automation, warm)
 	if cfg == nil {
 		return false
 	}
@@ -158,15 +158,20 @@ func (e *tierEngine) placeOnlyMiss(automation string, places [][2]string) bool {
 	return !targetsPlace(cfg, places)
 }
 
-func (e *tierEngine) liveMiss(automation string, places [][2]string) bool {
-	cfg := e.warmConfig(automation)
+func (e *tierEngine) liveMiss(automation string, places [][2]string, warm bool) bool {
+	cfg := e.configOf(automation, warm)
 	return cfg != nil && !targetsPlace(cfg, places)
 }
 
 // stateStamp: the last_changed of an automation's on or off state; "" for
 // any other state (unavailable may survive a replacement), none, or a read
-// that fails.
-func (e *tierEngine) stateStamp(id string) string {
+// that fails (warm: one that got no answer is never pinned for the walk).
+func (e *tierEngine) stateStamp(id string, warm bool) string {
+	if warm {
+		if _, _, err := e.s.warmCoreGET(e.statePath(id)); err != nil {
+			return ""
+		}
+	}
 	body, present, err := e.rawState(id)
 	var st struct {
 		State       string `json:"state"`

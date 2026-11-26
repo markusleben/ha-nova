@@ -78,7 +78,7 @@ func (e *tierEngine) warmCensus() {
 // warmQuiet sends the search/related reads of every place loud checks for
 // id at once; loud reads them one by one from the memo.
 func (e *tierEngine) warmQuiet(id string) {
-	if e.s == nil || e.listeners == nil || e.s.replaying() { // without listeners loud reads nothing
+	if e.s == nil || e.listeners == nil || e.s.replaying() || !e.placesWarm() { // without listeners loud reads nothing
 		return
 	}
 	items, _, _ := e.relatedItems(id) // an unreadable registry: loud says so
@@ -132,12 +132,26 @@ func (e *tierEngine) recheckListeners() {
 }
 
 // warmState sends the read rawState makes for id, ahead of it.
-func (e *tierEngine) warmState(id string) {
-	path := "/api/states/" + id
+func (e *tierEngine) warmState(id string) { _, _, _ = e.s.warmCoreGET(e.statePath(id)) }
+
+// statePath: what rawState reads for id, the one state list once it serves
+// every state (useStateList).
+func (e *tierEngine) statePath(id string) string {
 	if e.stateList != nil {
-		path = "/api/states"
+		return "/api/states"
 	}
-	_, _, _ = e.s.warmCoreGET(path)
+	return "/api/states/" + id
+}
+
+// placesWarm: the device and area registries relatedItems reads answered a
+// warm read, so a warm caller of it pins no failure nobody used.
+func (e *tierEngine) placesWarm() bool {
+	for _, kind := range []string{"device", "area"} {
+		if _, err := e.s.warmRead("ws", map[string]any{"type": "config/" + kind + "_registry/list"}); err != nil && !answered(err) {
+			return false
+		}
+	}
+	return true
 }
 
 // warm runs read in the background; evaluate waits for every one.
