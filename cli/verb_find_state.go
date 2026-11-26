@@ -115,13 +115,13 @@ func mergeStates(states []stateRow, friendly map[string]string, matches, hits []
 // get's suggestions stay serial, so a plan's reads stay exactly its own.
 func warmFind(s *relaySession, q findQuery) {
 	reads := []func(){
-		func() { _, _ = s.ws(map[string]any{"type": "config/area_registry/list"}) },
-		func() { _, _ = s.ws(map[string]any{"type": "config/device_registry/list"}) },
-		func() { _, _, _ = s.coreGET("/api/states") },
-		func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list_for_display"}) },
+		func() { s.warmWS(map[string]any{"type": "config/area_registry/list"}) },
+		func() { s.warmWS(map[string]any{"type": "config/device_registry/list"}) },
+		func() { _, _, _ = s.warmCoreGET("/api/states") },
+		func() { s.warmWS(map[string]any{"type": "config/entity_registry/list_for_display"}) },
 	}
 	if q.includeDisabled || q.completeAliases {
-		reads = append(reads, func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list"}) })
+		reads = append(reads, func() { s.warmWS(map[string]any{"type": "config/entity_registry/list"}) })
 	}
 	warm(reads)
 }

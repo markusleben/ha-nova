@@ -35,10 +35,10 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		e.aheadActed += len(level)
 		var reads []func()
 		for _, id := range level {
-			reads = append(reads, func() { _, _, _ = e.rawState(id) })
+			reads = append(reads, func() { e.warmState(id) })
 			items, _, _ := e.relatedItems(id) // an unreadable registry: the walk's scan says so
 			for _, item := range items {
-				reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+				reads = append(reads, func() { e.s.warmWS(e.relatedRequest(item[0], item[1])) })
 			}
 		}
 		prefetch(reads)
@@ -80,7 +80,7 @@ func (e *tierEngine) readAhead(ids []string, depth int) {
 		for i, automation := range automations {
 			e.ahead["consumer "+automation] = true
 			if states { // the walk reads its state too (runConfig, scanConsumers)
-				reads = append(reads, func() { _, _, _ = e.rawState(automation) })
+				reads = append(reads, func() { e.warmState(automation) })
 			}
 			reads = append(reads, func() {
 				if named[automation] || !e.placeOnlyMiss(automation, places[automation]) {
@@ -143,6 +143,9 @@ func namesEntryID(cfg map[string]any) bool {
 // Assistant loaded), blueprint substituted, through the session only; nil
 // when it can't.
 func (e *tierEngine) warmConfig(automation string) map[string]any {
+	if _, err := e.s.warmRead("ws", loadedConfigRequest(automation, "automation")); err != nil && !answered(err) {
+		return nil
+	}
 	raw, ok, err := loadedConfig(e.s, automation, "automation")
 	if err != nil || !ok {
 		return nil
@@ -164,7 +167,7 @@ func (e *tierEngine) warmBlueprint(domain string, raw json.RawMessage) map[strin
 	var sub struct {
 		Config map[string]any `json:"substituted_config"`
 	}
-	if e.s.wsDecode(blueprintRequest(domain, bp), &sub, "the blueprint substitution") != nil || len(sub.Config) == 0 {
+	if data, err := e.s.warmRead("ws", blueprintRequest(domain, bp)); err != nil || json.Unmarshal(data, &sub) != nil || len(sub.Config) == 0 {
 		return nil
 	}
 	return withInstanceKeys(domain, sub.Config, cfg)

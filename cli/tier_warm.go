@@ -26,10 +26,10 @@ func (e *tierEngine) warmCallReads(req planCallRequest) {
 		return
 	}
 	ws := func(wsType string) func() {
-		return func() { _, _ = e.s.ws(map[string]any{"type": wsType}) }
+		return func() { e.s.warmWS(map[string]any{"type": wsType}) }
 	}
 	core := func(path string) func() {
-		return func() { _, _, _ = e.s.coreGET(path) }
+		return func() { _, _, _ = e.s.warmCoreGET(path) }
 	}
 	var reads []func()
 	for _, id := range req.EntityIDs[:min(len(req.EntityIDs), 2)] {
@@ -60,17 +60,17 @@ func (e *tierEngine) warmCensus() {
 		return
 	}
 	e.warm(func() {
-		if _, helpers, _ := helperComponents(e.s.coreGET("/api/config")); helpers && e.s.yamlHelpersRun() {
-			_, _ = e.s.read(yamlHelpersEndpoint, map[string]any{})
+		if _, helpers, _ := helperComponents(e.s.warmCoreGET("/api/config")); helpers && e.s.yamlHelpersRun() {
+			_, _ = e.s.warmRead(yamlHelpersEndpoint, map[string]any{})
 		}
 	})
 	if !e.s.gateExempt() { // readBatched never batches for the App's own callers
 		e.warm(func() { e.s.wsBatch() })
 	}
 	e.warm(func() {
-		status, body, err := e.s.coreGET("/api/states")
+		status, body, err := e.s.warmCoreGET("/api/states")
 		if rows, err := censusRows(status, body, err); err == nil && len(rows) <= tierMaxAutomations {
-			e.readCensus(rows, relaySessionMaxConcurrent/2) // the walk keeps the other slots
+			e.readCensus(rows, relaySessionMaxConcurrent/2, true) // the walk keeps the other slots
 		}
 	})
 }
@@ -84,7 +84,7 @@ func (e *tierEngine) warmQuiet(id string) {
 	items, _, _ := e.relatedItems(id) // an unreadable registry: loud says so
 	var reads []func()
 	for _, item := range items {
-		reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+		reads = append(reads, func() { e.s.warmWS(e.relatedRequest(item[0], item[1])) })
 	}
 	prefetch(reads)
 }
@@ -129,6 +129,15 @@ func (e *tierEngine) recheckListeners() {
 			e.gap(reasonListener, "", viaListenerScan, fmt.Sprintf("%s: %d listeners at the census, %d before sealing", t, e.events[t], now[t]))
 		}
 	}
+}
+
+// warmState sends the read rawState makes for id, ahead of it.
+func (e *tierEngine) warmState(id string) {
+	path := "/api/states/" + id
+	if e.stateList != nil {
+		path = "/api/states"
+	}
+	_, _, _ = e.s.warmCoreGET(path)
 }
 
 // warm runs read in the background; evaluate waits for every one.

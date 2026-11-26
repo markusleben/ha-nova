@@ -213,7 +213,7 @@ func (s *relaySession) memoized(endpoint string, payload map[string]any) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	_, sent := s.memo[endpoint+" "+string(body)]
-	return sent
+	return sent || s.warmFailed[endpoint+" "+string(body)]
 }
 
 // replayed: the preview's choice under key, without marking a replay

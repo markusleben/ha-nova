@@ -62,6 +62,7 @@ func (s *relaySession) readBatched(requests []map[string]any, inFlight int) {
 	}
 	var items []json.RawMessage
 	var memos []*relayMemo
+	var keys []string
 	s.mu.Lock()
 	for _, request := range requests {
 		body, err := json.Marshal(request)
@@ -69,9 +70,9 @@ func (s *relaySession) readBatched(requests []map[string]any, inFlight int) {
 		if err != nil || !wsBatchItem(request) || checkReadOnlyRequest("ws", request) != nil || s.memo[key] != nil || s.replay != nil {
 			continue
 		}
-		m := &relayMemo{done: make(chan struct{})}
+		m := &relayMemo{done: make(chan struct{}), warm: true}
 		s.memo[key] = m
-		items, memos = append(items, body), append(memos, m)
+		items, memos, keys = append(items, body), append(memos, m), append(keys, key)
 	}
 	s.mu.Unlock()
 	var slots chan struct{} // nil: every batch at once
@@ -85,15 +86,16 @@ func (s *relaySession) readBatched(requests []map[string]any, inFlight int) {
 				slots <- struct{}{}
 				defer func() { <-slots }()
 			}
-			s.sendBatch(items[start:end], memos[start:end])
+			s.sendBatch(items[start:end], memos[start:end], keys[start:end])
 		}()
 	}
 }
 
 // sendBatch sends one batch through the session's request slots, once (a
 // resend could repeat reads still under way), and settles every memo: an
-// item's own answer, or the batch's failure as each item's failed read.
-func (s *relaySession) sendBatch(items []json.RawMessage, memos []*relayMemo) {
+// item's own answer, or the batch's failure as each item's failed read
+// (warm: one with no answer is read again by its consumer).
+func (s *relaySession) sendBatch(items []json.RawMessage, memos []*relayMemo, keys []string) {
 	var answer struct {
 		Results []struct {
 			OK    *bool           `json:"ok"`
@@ -131,6 +133,6 @@ func (s *relaySession) sendBatch(items []json.RawMessage, memos []*relayMemo) {
 			r := answer.Results[i].Error
 			m.err = &relayCallError{endpoint: "ws", status: http.StatusBadGateway, code: r.Code, message: r.Message}
 		}
-		close(m.done)
+		s.settle(keys[i], m)
 	}
 }
