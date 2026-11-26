@@ -167,16 +167,28 @@ deploy or tag.
    ```
 3. Push the RC tag
    (`git tag vX.Y.Z-rcN <reviewed-merge-sha> && git push origin vX.Y.Z-rcN`).
-4. Wait for `release.yml` to finish green. Run the standard RC check from a
-   checkout at the tag (its test bed builds this checkout's Relay):
+4. Wait for `release.yml` to finish green. The standard RC check then runs
+   on GitHub Actions by itself: `rc-lane.yml` starts when `release.yml`
+   succeeds on an `-rcN` tag, checks out the tag (its test bed builds the
+   tag's Relay), and runs `npm run rc-lane -- vX.Y.Z-rcN` on `ubuntu-latest`
+   with the tag's Linux binary; row c SKIPs there (no Claude login). To run
+   it again, or when it did not start, dispatch it (`gh workflow run` prints
+   the new run's URL; the automatic one is `--event workflow_run`):
    ```bash
-   npm run rc-lane -- vX.Y.Z-rcN
+   gh workflow run rc-lane.yml --ref main -f tag=vX.Y.Z-rcN
+   gh run list --workflow rc-lane.yml --event workflow_dispatch --limit 5
+   gh run watch <exact-rc-lane-run-id> --exit-status
    ```
-   On a Mac, run it as `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN`
-   instead: from 0.32 every HA NOVA command on macOS looks up its key in the
+   The run passes only when its `rc-lane` job succeeded; its job summary
+   holds the table as Markdown, headed by the tag and commit it tested. As
+   locally, a green run still needs the table read for the gate (section
+   3): no WARN row and no SKIP but row c. Fallback when Actions
+   can't run it: from a checkout at the tag, `npm run rc-lane -- vX.Y.Z-rcN`
+   on a Linux host, or `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN` on
+   a Mac: from 0.32 every HA NOVA command on macOS looks up its key in the
    login Keychain, so rc-lane and the client matrix's macOS lane refuse to
    run in a person's session. The container runs every row with the tag's
-   Linux binary; row c SKIPs there. The macOS binary's signing identity is
+   Linux binary; row c SKIPs there too. The macOS binary's signing identity is
    checked by `rc-macos-lane.yml` on a hosted runner
    (`gh workflow run rc-macos-lane.yml -f tag=vX.Y.Z-rcN`).
    One command, throwaway only, about 10–15 minutes: with the tag's binary,
@@ -199,8 +211,9 @@ deploy or tag.
    unlock skips the census; `scripts/e2e/testbed/README.md`, "Real-home
    checks"). It prints one
    table and exits non-zero on any FAIL; a WARN row means the bed's Relay is
-   not the tag's. Post the table as a comment on the release-prep PR. It
-   starts its own test bed (with file access), so no other bed may run.
+   not the tag's. Post the table (the job summary, or the fallback's
+   output) as a comment on the release-prep PR. It starts its own test bed
+   (with file access), so on a local host no other bed may run.
    Known limit: no lane reaches the App over Home Assistant Link (the
    Cloud checklist's `app_update_over_link` row does).
    Then, where the release class requires it (section 3), the Windows
