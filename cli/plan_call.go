@@ -470,14 +470,14 @@ func (e *tierEngine) evaluate(req planCallRequest, targets []verbTarget) *tierRe
 		}
 		items, _, _ := e.relatedItems(t.EntityID) // before any long scan: the plan basis binds them (basisConsumers)
 		for _, item := range items {
-			reads = append(reads, func() { _, _ = e.s.ws(e.relatedRequest(item[0], item[1])) })
+			reads = append(reads, func() { e.s.warmWS(e.relatedRequest(item[0], item[1])) })
 		}
 	}
 	e.censusMoot = e.callTargetTyped(req, targets)
 	e.warmCensus()
 	reads = append(reads, // checkManagers reads them after the walk: how far a cut walk got must not decide them
-		func() { _, _ = e.s.ws(map[string]any{"type": "config_entries/get"}) },
-		func() { _, _ = e.s.ws(map[string]any{"type": "config/entity_registry/list"}) })
+		func() { e.s.warmWS(map[string]any{"type": "config_entries/get"}) },
+		func() { e.s.warmWS(map[string]any{"type": "config/entity_registry/list"}) })
 	prefetch(reads) // the consumer scan of every frozen target, warmed in parallel
 	e.called(req.Service)
 	switch {

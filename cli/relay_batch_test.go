@@ -14,7 +14,7 @@ import (
 
 func withFakeBatches(t *testing.T) {
 	fakeRelayBatch.Store(true)
-	t.Cleanup(func() { fakeRelayBatch.Store(false); fakeRelayBatchFails.Store(false) })
+	t.Cleanup(func() { fakeRelayBatch.Store(false); fakeRelayBatchFails.Store(false); fakeRelayBatchHold.Store(nil) })
 }
 
 // censusHome: twenty listening automations, one whose config is gone, and a
@@ -53,11 +53,20 @@ func configReads(log *fakeRelayLog) int {
 }
 
 func TestTheCensusReadsConfigsInBatchesWithTheSameResult(t *testing.T) {
+	broken := func(log *fakeRelayLog) int {
+		n := 0
+		for _, c := range log.all() {
+			if c.endpoint == "ws" && c.payload["type"] == "automation/config" && c.payload["entity_id"] == "automation.broken" {
+				n++
+			}
+		}
+		return n
+	}
 	for _, tc := range []struct {
-		name  string
-		home  func() *fakeHA
-		reads int
-	}{{"a config gone", censusHome, 22}, {"a read that fails", brokenHome, 23}} {
+		name   string
+		home   func() *fakeHA
+		failed bool
+	}{{"a config gone", censusHome, false}, {"a read that fails", brokenHome, true}} {
 		fakeRelayBatch.Store(false)
 		_, single, _, singleLog := runPlanForTest(t, tc.home(), "light.turn_on", "light.kitchen")
 		withFakeBatches(t)
@@ -65,11 +74,20 @@ func TestTheCensusReadsConfigsInBatchesWithTheSameResult(t *testing.T) {
 		if singleLog.batches.Load() != 0 {
 			t.Fatalf("%s: a Relay without ws_batch got %d batches", tc.name, singleLog.batches.Load())
 		}
-		if got := batchLog.batches.Load(); got != 2 { // 16 and the rest
+		// 16 and the rest; the scan may batch the failing one again, as
+		// its warm read's failure is never handed on
+		if got := batchLog.batches.Load(); got != 2 && !(tc.failed && got == 3) {
 			t.Fatalf("%s: batches = %d, want 2", tc.name, got)
 		}
-		if single, batched := configReads(singleLog), configReads(batchLog); single != tc.reads || batched != single {
-			t.Fatalf("%s: config reads %d single, %d batched; want each of the %d read once", tc.name, single, batched, tc.reads)
+		// Every answered config is read once. The failing one is read by
+		// the warm census's batch, the scan's batch, the warm single, and
+		// the scan itself at most, whichever of them gets to it first
+		// (#1299); TestAWarmBatchItemWithNoAnswerIsReadAgain proves the
+		// read again.
+		for label, log := range map[string]*fakeRelayLog{"single": singleLog, "batched": batchLog} {
+			if answered, failing := configReads(log)-broken(log), broken(log); answered != 22 || tc.failed != (failing > 0) || failing > 4 {
+				t.Fatalf("%s %s: answered config reads %d (want 22), failing one read %d times", tc.name, label, answered, failing)
+			}
 		}
 		if single.Tier != batched.Tier || reasonCodes(single) != reasonCodes(batched) || !slices.Equal(single.Coverage.Notes, batched.Coverage.Notes) || single.Coverage.Complete != batched.Coverage.Complete {
 			t.Fatalf("%s: batched plan differs: single %s [%s] %+v, batched %s [%s] %+v", tc.name, single.Tier, reasonCodes(single), single.Coverage, batched.Tier, reasonCodes(batched), batched.Coverage)
@@ -77,20 +95,25 @@ func TestTheCensusReadsConfigsInBatchesWithTheSameResult(t *testing.T) {
 	}
 }
 
-// A batch that fails as a whole is each item's failed read: typed, and never
-// a config that is gone (whatever its message says).
+// A batch that fails as a whole was sent ahead of its consumers: nobody used
+// that failure, so the scan reads each config once on its own and plans as
+// without batches, never a config that is gone (whatever its message says).
 func TestAFailedBatchIsAFailedReadNeverNotFound(t *testing.T) {
+	home := func() *fakeHA {
+		f := newFakeHA()
+		unexplainedCallService(f)
+		f.automation("other", "other_id", map[string]any{"triggers": []any{}})
+		return f
+	}
+	singleExit, single, _, singleLog := runPlanForTest(t, home(), "light.turn_on", "light.kitchen")
 	withFakeBatches(t)
 	fakeRelayBatchFails.Store(true)
-	f := newFakeHA()
-	unexplainedCallService(f)
-	f.automation("other", "other_id", map[string]any{"triggers": []any{}})
-	exit, env, _, log := runPlanForTest(t, f, "light.turn_on", "light.kitchen")
-	if log.batches.Load() != 1 || configReads(log) != 0 {
-		t.Fatalf("batches %d, single config reads %d: want one batch and no resend", log.batches.Load(), configReads(log))
+	exit, env, _, log := runPlanForTest(t, home(), "light.turn_on", "light.kitchen")
+	if n := log.batches.Load(); n < 1 || n > 2 || configReads(log) != configReads(singleLog) { // the warm census's batch, and the scan's when it gets there first
+		t.Fatalf("batches %d, single config reads %d: want a batch or two, then each config read as without batches (%d)", n, configReads(log), configReads(singleLog))
 	}
-	if codes := reasonCodes(env); exit != 3 || env.Tier != "typed" || strings.Contains(codes, reasonUnreadConfig) {
-		t.Fatalf("exit %d tier %s reasons %s: want typed for a failed read", exit, env.Tier, codes)
+	if codes := reasonCodes(env); exit != singleExit || env.Tier != single.Tier || codes != reasonCodes(single) || strings.Contains(codes, reasonUnreadConfig) {
+		t.Fatalf("exit %d tier %s reasons %s: want the plan without batches (%s [%s])", exit, env.Tier, codes, single.Tier, reasonCodes(single))
 	}
 }
 
@@ -173,6 +196,9 @@ func serveFakeBatch(t *testing.T, w http.ResponseWriter, r *http.Request, log *f
 		t.Errorf("the gate would not pass this batch as a read (%+v): %s", check, raw)
 	}
 	log.batches.Add(1)
+	if hold := fakeRelayBatchHold.Load(); hold != nil {
+		<-*hold
+	}
 	if fakeRelayBatchFails.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": map[string]any{"code": "GATE_UNAVAILABLE", "message": "not_found is not this read's answer"}})

@@ -177,7 +177,7 @@ func TestPlaceIndexFailsToALiveRead(t *testing.T) {
 		}
 		f.states["automation.room"]["last_changed"] = "2026-11-12T02:00:00+00:00" // reloaded with the new config
 		f.mu.Unlock()
-		e.placeOnlyMiss("automation.room", [][2]string{{"area", "kuche"}})
+		e.placeOnlyMiss("automation.room", [][2]string{{"area", "kuche"}}, false)
 		s.close()
 		if data, _ := os.ReadFile(filepath.Join(paths.CacheDir, "place-index.json")); strings.Contains(string(data), "automation.room") {
 			t.Fatalf("the old config was saved under the new stamp: %s", data)
@@ -195,11 +195,11 @@ func TestPlaceIndexFailsToALiveRead(t *testing.T) {
 		e := newTierEngine(s)
 		state, _ := json.Marshal(map[string]any{"method": "GET", "path": "/api/states/automation.room"})
 		s.replay = map[string]bool{"core " + string(state): true, fmt.Sprintf("place-index automation.room 2026-11-12T01:00:00+00:00 %v", places): true}
-		if !e.placeOnlyMiss("automation.room", places) || s.diverged {
+		if !e.placeOnlyMiss("automation.room", places, false) || s.diverged {
 			t.Fatalf("the preview's skip was not replayed (diverged %v)", s.diverged)
 		}
 		s.replay = map[string]bool{"core " + string(state): true}
-		if e.placeOnlyMiss("automation.room", [][2]string{{"area", "flur"}}) || !s.diverged {
+		if e.placeOnlyMiss("automation.room", [][2]string{{"area", "flur"}}, false) || !s.diverged {
 			t.Fatalf("a skip the preview never made: want a read the replay lacks (diverged), got diverged %v", s.diverged)
 		}
 	})
