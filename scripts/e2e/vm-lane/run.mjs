@@ -260,8 +260,7 @@ function hostNote() {
   const sh = (cmd) => { try { return execFileSync("bash", ["-c", cmd], { encoding: "utf8" }).trim(); } catch { return ""; } };
   const free = Number(sh("memory_pressure | sed -n 's/.*free percentage: \\([0-9]*\\)%.*/\\1/p'"));
   const [total, used] = (sh("sysctl -n vm.swapusage").match(/total = ([\d.]+)M\s+used = ([\d.]+)M/) ?? []).slice(1).map(Number);
-  const ok = free >= 30 && (!total || used / total < 0.5);
-  row("p", "host memory/disk (note only)", ok ? "PASS" : "WARN", `memory free ${free}%, swap ${used ?? "?"}/${total ?? "?"} MB, disk free ${sh("df -h / | awk 'NR==2{print $4}'")}; VM start rule: free >= 30% and swap < 50%`);
+  row("p", "host memory/disk (note only)", free >= 30 ? "PASS" : "WARN", `memory free ${free}%, swap ${used ?? "?"}/${total ?? "?"} MB, disk free ${sh("df -h / | awk 'NR==2{print $4}'")}; lane rule: free >= 30% (swap doesn't count)`);
   return free;
 }
 
@@ -554,8 +553,8 @@ try {
   await new Promise((done, fail) => { lease.once("error", () => fail(new Error("VM lane lock 127.0.0.1:4557 is busy; do not run two lanes against the same VMs"))); lease.listen(4557, "127.0.0.1", done); });
   say(`candidate ${tag}; VM tools ${TOOLS}; work dir ${WORK}`);
   for (const f of [CFG.creds, CFG.win.key]) if (!existsSync(f)) throw new Error(`missing ${f} (VM_LANE_* overrides the paths)`);
-  if (hostNote() < 30 && box) throw new Error("--container: less than 30% memory free; no lane writes");
   const down = await waitForVms();
+  if (hostNote() < 30) throw new Error("less than 30% memory free; no lane writes");
   if (stopping) throw new Error("VM lane cancelled before preflight");
   if (down.length) throw new Error(`not running: ${down.map((k) => `"${VMS[k][0]}"`).join(", ")}. Start it in UTM, then rerun (or pass --wait 60)`);
   let stable = opt("--from");

@@ -11,6 +11,16 @@ Four layers, cheapest first. Use the smallest one that covers your change.
 
 Layer 1 is documented in [CONTRIBUTING.md → Verification Matrix](../../CONTRIBUTING.md#verification-matrix); this page covers layers 2 through 4, plus the isolation env vars and the safety rules that keep them from touching anything you care about.
 
+## Where tests run
+
+GitHub Actions comes first for anything that needs only Linux and Docker, or a hosted macOS or Windows runner. The repository is public, so its standard runners cost nothing:
+
+- every PR runs `ci.yml`: the verify job (typecheck, Vitest, build, docs), the Go suite in shards, the race detector, and the cross-target build;
+- the test bed and the disposable Home Assistant run on any branch, testing exactly its commit: `gh workflow run testbed-ha-stable.yml --ref <branch>` (about 5 minutes) and `gh workflow run e2e-disposable-ha.yml --ref <branch>` (about 2 minutes);
+- an RC's macOS binary is checked by `rc-macos-lane.yml` on a hosted runner.
+
+A local machine runs only targeted tests and what no hosted runner reaches yet: an agent run on the test bed (AGENTS.md → Review), the rc lane (`docs/releasing.md` §4), the `vm-lane` on throwaway VMs, and the maintainer's real-device rows. It runs one test bed at a time.
+
 ## 1. Host-safe checks
 
 `npm run verify:node` is the host-safe gate on any machine: dependency audit, blocked-file checks, release metadata, typecheck, the docs fact-check, the build, and every Vitest test in one sweep. It never opens a browser or touches a real OS keyring. `npm run verify` adds the Go CLI suite; its pairing, setup, purge, and server-removal tests run on a Mac only in a Linux container or a separate macOS user (see the Keychain note below), so on a Mac with real credentials leave them to CI. In a container, run the suite as a non-root user, as CI's runner is, with the whole repository mounted: root writes into a directory a test made read-only, and some tests read `nova/` and `skills/`.

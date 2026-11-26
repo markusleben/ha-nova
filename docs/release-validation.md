@@ -154,7 +154,7 @@ Evidence record for each run:
 
 Release defaults:
 - RC before tag: local/private bundle proof is acceptable only as a pre-tag sanity check
-- RC after publish: `npm run vm-lane -- vX.Y.Z-rcN` green against the published prerelease (Windows 11 + PowerShell 7 and 5.1, standard users, fresh profiles, rerun, stale marker); post its table on the release-prep PR
+- RC after publish, when the release class requires it (`docs/releasing.md` §3): `npm run vm-lane -- vX.Y.Z-rcN` green against the published prerelease (Windows 11 + PowerShell 7 and 5.1, standard users, fresh profiles, rerun, stale marker); post its table on the release-prep PR
 - Stable: full 4-host matrix (the Windows 11 rows from `vm-lane`) plus `reinstall` and `stale-uninstall-marker` runs before final publish when installer/onboarding changed
 
 ## Desktop Validation Helpers
