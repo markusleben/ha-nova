@@ -322,6 +322,7 @@ func (s *relaySession) forgetCoreGET(path string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.memo, "core "+string(body))
+	delete(s.warmFailed, "core "+string(body))
 }
 
 // reauthSnapshotTimeout bounds the best-effort snapshot so it never delays

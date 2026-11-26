@@ -138,12 +138,12 @@ func runGetDeadReferences(s *relaySession, env *verbEnvelope) error {
 // was not read would look missing.
 func readDeadRefHome(s *relaySession) (*deadRefHome, []fullRegistryRow, error) {
 	warm([]func(){
-		func() { _, _, _ = s.coreGET("/api/states") },
-		func() { _, _, _ = s.coreGET("/api/services") },
-		func() { _, _ = s.ws(map[string]any{"type": "config/entity_registry/list"}) },
-		func() { _, _ = s.ws(map[string]any{"type": "config/device_registry/list"}) },
-		func() { _, _ = s.ws(map[string]any{"type": "config/device_registry/list_composite_splits"}) },
-		func() { _, _ = s.ws(map[string]any{"type": "config/area_registry/list"}) },
+		func() { _, _, _ = s.warmCoreGET("/api/states") },
+		func() { _, _, _ = s.warmCoreGET("/api/services") },
+		func() { s.warmWS(map[string]any{"type": "config/entity_registry/list"}) },
+		func() { s.warmWS(map[string]any{"type": "config/device_registry/list"}) },
+		func() { s.warmWS(map[string]any{"type": "config/device_registry/list_composite_splits"}) },
+		func() { s.warmWS(map[string]any{"type": "config/area_registry/list"}) },
 	})
 	home := &deadRefHome{states: map[string]string{}, names: map[string]string{}, registry: map[string]fullRegistryRow{}, byEntryID: map[string]string{},
 		devices: map[string]string{}, legacy: map[string]bool{}, areas: map[string]bool{}, actions: map[string]bool{}}

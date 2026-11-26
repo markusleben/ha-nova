@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/) and [Semantic Versioning](https://semver.org/).
 
+## [Relay 0.13.34] - 2026-11-26
+
+### Changed
+- Chat apps get HA NOVA 0.36.0. Its safety check sends a plan's reads together, so planning a light call on a slow connection takes less than half the time, and an empty or malformed answer from Home Assistant now counts as unread, so the change asks instead of running right away.
+- In chat apps, a plan that renames several entities checks each one right before its write.
+
+### Fixed
+- In chat apps, the first call right after this App restarts, for example after an update, no longer stops because Home Assistant's list of services went unread. A read sent ahead of the plan that gets no answer is read again by the step that needs it.
+
+### Security
+- A computer connected with a code that an administrator other than the owner made works only while that person is still an active administrator. Each of its requests reads Home Assistant's users: a demoted, deactivated, or deleted maker gets `401 UNAUTHORIZED` ("connect it again"), and an unreadable users list gets `503 ROLE_UNKNOWN`. If the role comes back, the computer works again. The owner's codes, sign-in pairing, and this App's own devices are not affected.
+- In chat apps, a change uses the person's Home Assistant role as read right before it runs, under the same lock as the change.
+
+### Upgrade notes
+- Computers on HA NOVA 0.36.0 ask you to update this App. Update this App first, then each computer.
+- Computers an administrator connected before this version keep their access: revoke them on the NOVA page and connect them again to get the check.
+- Going back to an older App leaves the computers an administrator connected on this version unknown (`401`): connect them again, and once more after updating back, because a computer connected on the older App isn't checked. Every other computer keeps working.
+
 ## [Relay 0.13.32] - 2026-11-23
 
 ### Changed

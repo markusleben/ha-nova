@@ -334,7 +334,7 @@ func (e *tierEngine) loud(id string) string {
 		}
 		for _, automation := range related["automation"] {
 			st, err := e.state(automation)
-			switch cfg := e.warmConfig(automation); {
+			switch cfg := e.configOf(automation, false); {
 			case err != nil || st == nil:
 				return id + ": state unread of " + automation + where
 			case st.attr("current") != float64(0):
