@@ -73,6 +73,13 @@ jobs:
           go-version-file: cli/go.mod
           cache: false
 
+      # Row j wants 12 GB free after the bed's images and the matrix (ask-count.mjs).
+      - name: Free disk and check the tools
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          command -v column > /dev/null || sudo apt-get install -y --no-install-recommends bsdextrautils
+          df -h / "$RUNNER_TEMP"
+
       - name: Run the rc lane
         id: lane
         env:

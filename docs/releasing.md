@@ -129,15 +129,17 @@ deploy or tag.
    succeeds on an `-rcN` tag, checks out the tag (its test bed builds the
    tag's Relay), and runs `npm run rc-lane -- vX.Y.Z-rcN` on `ubuntu-latest`
    with the tag's Linux binary; row c SKIPs there (no Claude login). To run
-   it again, or when it did not start, dispatch it and watch the run named
-   `rc lane vX.Y.Z-rcN`:
+   it again, or when it did not start, dispatch it (`gh workflow run` prints
+   the new run's URL; the automatic one is `--event workflow_run`):
    ```bash
    gh workflow run rc-lane.yml --ref main -f tag=vX.Y.Z-rcN
-   gh run list --workflow rc-lane.yml --limit 5
+   gh run list --workflow rc-lane.yml --event workflow_dispatch --limit 5
    gh run watch <exact-rc-lane-run-id> --exit-status
    ```
    The run passes only when its `rc-lane` job succeeded; its job summary
-   holds the table as Markdown, headed by the tag and commit it tested. Fallback when Actions
+   holds the table as Markdown, headed by the tag and commit it tested. As
+   locally, a green run still needs the table read for the gate (section
+   3): no WARN row and no SKIP but row c. Fallback when Actions
    can't run it: from a checkout at the tag, `npm run rc-lane -- vX.Y.Z-rcN`
    on a Linux host, or `bash scripts/e2e/rc-lane-container.sh vX.Y.Z-rcN` on
    a Mac: from 0.32 every HA NOVA command on macOS looks up its key in the
